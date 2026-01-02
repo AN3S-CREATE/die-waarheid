@@ -26,14 +26,20 @@ Thumbs.db
 temp_export/
 *.tmp
 
-# Large data files
-data/temp/*.zip
-data/temp/*.mp3
-data/temp/*.wav
-data/temp/*.mp4
-
-# Credentials
+# Privacy and sensitive data
 credentials/
+data/temp/
+data/audio/*.mp3
+data/audio/*.wav
+data/audio/*.m4a
+data/audio/*.ogg
+data/text/*.txt
+data/text/*.doc
+data/text/*.docx
+data/text/*.pdf
+*.voice
+*.recording
+*.private
 
 # Streamlit
 .streamlit/
