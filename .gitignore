@@ -26,6 +26,12 @@ Thumbs.db
 temp_export/
 *.tmp
 
+# Large data files
+data/temp/*.zip
+data/temp/*.mp3
+data/temp/*.wav
+data/temp/*.mp4
+
 # Credentials
 credentials/
 
