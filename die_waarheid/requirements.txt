@@ -1,0 +1,86 @@
+# Die Waarheid - Forensic Analysis System
+# Python 3.8+ required
+
+# ============================================================================
+# CORE DEPENDENCIES (Required)
+# ============================================================================
+
+# Framework & Configuration
+streamlit>=1.30.0
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
+python-dateutil>=2.8.0
+pytz>=2023.3
+regex>=2023.0
+
+# ============================================================================
+# AUDIO PROCESSING (Required for voice analysis)
+# ============================================================================
+
+librosa>=0.10.0
+soundfile>=0.12.0
+pydub>=0.25.0
+audioread>=3.0.0
+scipy>=1.11.0
+
+# ============================================================================
+# AI & MACHINE LEARNING (CRITICAL - Required for transcription)
+# ============================================================================
+
+# OpenAI Whisper for audio transcription (REQUIRED)
+openai-whisper>=20231117
+
+# Google Generative AI for expert panel & AI analysis
+google-generativeai>=0.3.0
+
+# Speaker diarization (optional - fallback available)
+# pyannote.audio>=3.0.0
+
+# NLP & Text Analysis
+nltk>=3.8.0
+textblob>=0.17.0
+
+# ============================================================================
+# DATABASE (Optional - in-memory fallback if missing)
+# ============================================================================
+
+sqlalchemy>=2.0.0
+
+# ============================================================================
+# GOOGLE INTEGRATION (Optional)
+# ============================================================================
+
+google-auth>=2.26.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.111.0
+
+# ============================================================================
+# VISUALIZATION & REPORTING
+# ============================================================================
+
+plotly>=5.18.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# ============================================================================
+# UTILITIES
+# ============================================================================
+
+tqdm>=4.66.0
+pillow>=10.0.0
+openpyxl>=3.1.0
+mutagen>=1.46.0
+psutil>=5.9.0
+
+# ============================================================================
+# NOTES
+# ============================================================================
+# 
+# CRITICAL: openai-whisper and google-generativeai are REQUIRED
+# Install with: pip install -r requirements.txt
+#

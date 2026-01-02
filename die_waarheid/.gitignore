@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment
+.env
+.venv
+
+# Credentials & API Keys
+credentials/
+token.pickle
+
+# Ignore sensitive JSON files - PRIVACY: No case data on GitHub
+*.json
+!requirements.txt
+
+# Data Files - PRIVACY: NEVER store actual case data on GitHub
+data/cases/
+data/audio/*
+data/text/*
+data/temp/*
+data/output/*
+!data/audio/.gitkeep
+!data/text/.gitkeep
+!data/temp/.gitkeep
+!data/output/.gitkeep
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model Cache
+.cache/
+models/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit
+.streamlit/secrets.toml

@@ -1,0 +1,54 @@
+# Core Framework
+streamlit==1.31.0
+python-dotenv==1.0.0
+
+# Data Processing
+pandas==2.2.2
+numpy==1.26.4
+python-dateutil==2.8.2
+pytz==2023.3
+regex==2023.12.25
+chardet==5.2.0
+emoji==2.10.1
+
+# Audio Processing
+librosa==0.10.1
+soundfile==0.12.1
+pydub==0.25.1
+audioread==3.0.1
+
+# Machine Learning & AI
+torch==2.5.1
+torchaudio==2.5.1
+torchvision==0.20.1
+torchmetrics==1.8.2
+openai-whisper==20231117
+pyannote.audio==3.1.1
+google-generativeai==0.3.2
+textblob==0.17.1
+
+# Google Drive Integration
+google-auth==2.26.2
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.111.0
+
+# Data Visualization
+plotly==5.18.0
+matplotlib==3.8.2
+seaborn==0.13.1
+kaleido==0.2.1  # For static image export
+wordcloud==1.9.3
+
+# Utilities
+tqdm==4.66.1
+pillow==10.1.0
+openpyxl==3.1.2  # Excel export support
+psutil==5.9.6  # System monitoring
+
+# NLP
+nltk==3.8.1
+spacy==3.7.2
+
+# Optional Performance Boost
+# numba==0.58.1  # Uncomment for faster librosa processing
