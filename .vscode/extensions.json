@@ -1,0 +1,9 @@
+{
+    "recommendations": [
+        "codeium.windsurfpyright",
+        "formulahendry.code-runner",
+        "ms-python.vscode-python-envs",
+        "ms-python.python",
+        "bierner.markdown-preview-github-styles"
+    ]
+}

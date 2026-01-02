@@ -8,11 +8,12 @@ __pycache__/
 *$py.class
 *.so
 
-# Environment variables
+# Environment variables (keep example but exclude actual .env)
 .env
+# .env.example
 
-# IDE
-.vscode/
+# IDE (exclude .idea but allow .vscode for sharing settings)
+# .vscode/
 .idea/
 
 # OS
@@ -22,7 +23,7 @@ Thumbs.db
 # Logs
 *.log
 
-# Temporary files
+# Temporary files (exclude temp_export - contains private voice notes)
 temp_export/
 *.tmp
 
@@ -41,5 +42,5 @@ data/text/*.pdf
 *.recording
 *.private
 
-# Streamlit
-.streamlit/
+# Streamlit (exclude sensitive config but allow basic structure)
+# .streamlit/
