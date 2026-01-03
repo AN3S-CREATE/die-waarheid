@@ -114,6 +114,7 @@ def render_sidebar():
             [
                 "🏠 Home",
                 "📥 Data Import",
+                "🎙️ Speaker Training",
                 "🎙️ Audio Analysis",
                 "💬 Chat Analysis",
                 "🧠 AI Analysis",
@@ -219,17 +220,131 @@ def page_data_import():
         
         with col1:
             st.write("**Upload Chat Export**")
-            chat_file = st.file_uploader("Select WhatsApp chat export (.txt)", type=['txt'])
             
-            if chat_file:
-                with st.spinner("Processing chat file..."):
-                    parser = WhatsAppParser()
-                    success, message = parser.parse_file(Path(TEMP_DIR) / chat_file.name)
+            # Debug information
+            with st.expander("🔍 Upload Debug Info"):
+                st.write("**Current Upload Configuration:**")
+                st.write("- Multiple files: ENABLED")
+                st.write("- File types: .txt")
+                st.write("- Max size per file: 50MB")
+                st.write("- Browser support: Chrome, Firefox, Edge, Safari")
+                st.write("**Tips for multiple file selection:**")
+                st.write("1. Click 'Browse files'")
+                st.write("2. Hold Ctrl/Cmd and click multiple files")
+                st.write("3. Or drag & drop multiple files onto the upload area")
+            
+            # Primary upload method
+            chat_files = st.file_uploader(
+                "Select WhatsApp chat export files (.txt)", 
+                type=['txt'], 
+                accept_multiple_files=True,
+                key="chat_files_primary"
+            )
+            
+            # Alternative upload method for troubleshooting
+            if st.button("🔄 Try Alternative Upload Method"):
+                st.session_state.show_alternative_upload = True
+            
+            if st.session_state.get('show_alternative_upload', False):
+                st.write("**Alternative Upload (Individual Files):**")
+                uploaded_file = st.file_uploader(
+                    "Upload one file at a time", 
+                    type=['txt'],
+                    key="chat_file_single"
+                )
+                
+                if uploaded_file:
+                    if 'chat_files_queue' not in st.session_state:
+                        st.session_state.chat_files_queue = []
                     
-                    if success:
-                        st.success(message)
-                        st.session_state.chat_parser = parser
-                        st.info(f"Metadata: {parser.get_metadata()}")
+                    # Add to queue
+                    if uploaded_file.name not in [f.name for f in st.session_state.chat_files_queue]:
+                        st.session_state.chat_files_queue.append(uploaded_file)
+                        st.success(f"✅ Added {uploaded_file.name} to queue")
+                    
+                    # Show queue
+                    st.write(f"**Queue ({len(st.session_state.chat_files_queue)} files):**")
+                    for i, f in enumerate(st.session_state.chat_files_queue):
+                        st.write(f"  {i+1}. {f.name}")
+                    
+                    # Process queue button
+                    if st.button(f"📤 Process {len(st.session_state.chat_files_queue)} Files"):
+                        chat_files = st.session_state.chat_files_queue
+                        st.session_state.chat_files_queue = []
+                        st.session_state.show_alternative_upload = False
+            
+            if chat_files:
+                st.info(f"📁 Processing {len(chat_files)} file(s): {', '.join([f.name for f in chat_files[:3]])}{'...' if len(chat_files) > 3 else ''}")
+                
+                with st.spinner(f"Processing {len(chat_files)} chat file(s)..."):
+                    saved_files = []
+                    failed_files = []
+                    
+                    for i, chat_file in enumerate(chat_files):
+                        try:
+                            st.write(f"📄 Processing file {i+1}/{len(chat_files)}: {chat_file.name}")
+                            
+                            # Validate file size (max 50MB per file)
+                            if chat_file.size > 50 * 1024 * 1024:  # 50MB limit
+                                failed_files.append((chat_file.name, "File too large (max 50MB)"))
+                                st.error(f"❌ {chat_file.name}: File too large")
+                                continue
+                            
+                            # Save chat file to permanent storage
+                            chat_save_path = Path(TEXT_DIR) / chat_file.name
+                            
+                            # Ensure unique filename
+                            counter = 1
+                            original_path = chat_save_path
+                            while chat_save_path.exists():
+                                stem = original_path.stem
+                                suffix = original_path.suffix
+                                chat_save_path = original_path.parent / f"{stem}_{counter}{suffix}"
+                                counter += 1
+                            
+                            with open(chat_save_path, "wb") as f:
+                                f.write(chat_file.getbuffer())
+                            
+                            # Parse the chat file
+                            parser = WhatsAppParser()
+                            success, message = parser.parse_file(chat_save_path)
+                            
+                            if success:
+                                saved_files.append((chat_save_path, parser))
+                                st.success(f"✅ Processed: {chat_file.name}")
+                            else:
+                                # Clean up failed file
+                                if chat_save_path.exists():
+                                    chat_save_path.unlink()
+                                failed_files.append((chat_file.name, message))
+                                st.error(f"❌ {chat_file.name}: {message}")
+                                
+                        except Exception as e:
+                            failed_files.append((chat_file.name, str(e)))
+                            st.error(f"❌ {chat_file.name}: {str(e)}")
+                    
+                    # Display results
+                    if saved_files:
+                        st.success(f"🎉 Successfully processed {len(saved_files)} chat files")
+                        
+                        # Show metadata for first few files
+                        for i, (file_path, parser) in enumerate(saved_files[:3]):
+                            with st.expander(f"📄 {file_path.name}"):
+                                metadata = parser.get_metadata()
+                                st.json(metadata)
+                        
+                        if len(saved_files) > 3:
+                            st.info(f"... and {len(saved_files) - 3} more files")
+                        
+                        # Store parsers in session state
+                        st.session_state.chat_parsers = [parser for _, parser in saved_files]
+                    
+                    if failed_files:
+                        st.error(f"❌ Failed to process {len(failed_files)} files:")
+                        for name, error in failed_files[:3]:
+                            st.error(f"  {name}: {error}")
+                        if len(failed_files) > 3:
+                            st.error(f"... and {len(failed_files) - 3} more errors")
         
         with col2:
             st.write("**Upload Audio Files**")
@@ -240,21 +355,175 @@ def page_data_import():
             )
             
             if audio_files:
-                st.info(f"Selected {len(audio_files)} audio files")
+                # Validate total upload size
+                total_size = sum(f.size for f in audio_files)
+                max_total_size = 500 * 1024 * 1024  # 500MB total limit per upload
+                
+                if total_size > max_total_size:
+                    st.error(f"❌ Total upload size too large: {total_size / (1024*1024):.1f}MB (max 500MB)")
+                    st.error("Please upload files in smaller batches")
+                else:
+                    with st.spinner(f"Saving {len(audio_files)} audio files..."):
+                        saved_files = []
+                        failed_files = []
+                        
+                        for audio_file in audio_files:
+                            try:
+                                # Validate individual file size (max 100MB per file)
+                                if audio_file.size > 100 * 1024 * 1024:  # 100MB limit
+                                    failed_files.append((audio_file.name, "File too large (max 100MB)"))
+                                    continue
+                                
+                                # Validate file type
+                                if audio_file.type and not any(audio_file.type.startswith(t) for t in ['audio/', 'video/']):
+                                    failed_files.append((audio_file.name, "Invalid file type"))
+                                    continue
+                                
+                                # Create organized date-based storage
+                                if audio_file.name.startswith("PTT-") and "-" in audio_file.name:
+                                    # Extract date from PTT files (PTT-YYYYMMDD-WAXXXX)
+                                    date_part = audio_file.name.split("-")[1]
+                                    if len(date_part) >= 8 and date_part[:8].isdigit():
+                                        year = date_part[:4]
+                                        month = date_part[4:6]
+                                        date_folder = Path(AUDIO_DIR) / "organized" / f"{year}-{month}"
+                                        date_folder.mkdir(parents=True, exist_ok=True)
+                                        save_path = date_folder / audio_file.name
+                                    else:
+                                        save_path = Path(AUDIO_DIR) / audio_file.name
+                                else:
+                                    save_path = Path(AUDIO_DIR) / audio_file.name
+                                
+                                # Ensure unique filename
+                                counter = 1
+                                original_path = save_path
+                                while save_path.exists():
+                                    stem = original_path.stem
+                                    suffix = original_path.suffix
+                                    save_path = original_path.parent / f"{stem}_{counter}{suffix}"
+                                    counter += 1
+                                
+                                # Save file to permanent storage
+                                with open(save_path, "wb") as f:
+                                    f.write(audio_file.getbuffer())
+                                
+                                saved_files.append(save_path)
+                                
+                            except Exception as e:
+                                failed_files.append((audio_file.name, str(e)))
+                        
+                        # Display results
+                        if saved_files:
+                            st.success(f"✅ Successfully saved {len(saved_files)} audio files ({sum(Path(f).stat().st_size for f in saved_files) / (1024*1024):.1f}MB)")
+                            
+                            # Show saved locations
+                            for file_path in saved_files[:3]:  # Show first 3
+                                rel_path = file_path.relative_to(AUDIO_DIR)
+                                st.info(f"📁 {rel_path}")
+                            if len(saved_files) > 3:
+                                st.info(f"... and {len(saved_files) - 3} more files")
+                        
+                        if failed_files:
+                            st.error(f"❌ Failed to save {len(failed_files)} files:")
+                            for name, error in failed_files[:3]:  # Show first 3 errors
+                                st.error(f"  {name}: {error}")
+                            if len(failed_files) > 3:
+                                st.error(f"... and {len(failed_files) - 3} more errors")
     
     with tab3:
-        st.subheader("Import Status")
+        st.subheader("Import Status & File Management")
+        
+        # Count actual files
+        chat_files_count = len(list(TEXT_DIR.glob("*.txt")))
+        audio_files_count = len(list(AUDIO_DIR.rglob("*.mp3")) + list(AUDIO_DIR.rglob("*.wav")) + 
+                               list(AUDIO_DIR.rglob("*.opus")) + list(AUDIO_DIR.rglob("*.ogg")) + 
+                               list(AUDIO_DIR.rglob("*.m4a")) + list(AUDIO_DIR.rglob("*.aac")))
         
         col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.metric("Chat Files", "0")
+            st.metric("Chat Files", chat_files_count)
         
         with col2:
-            st.metric("Audio Files", "0")
+            st.metric("Audio Files", audio_files_count)
         
         with col3:
-            st.metric("Last Import", "Never")
+            st.metric("Total Storage", f"{audio_files_count + chat_files_count}")
+        
+        # File management section
+        st.subheader("📁 File Management")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Storage Locations**")
+            st.info(f"📝 Chat files: `{TEXT_DIR}`")
+            st.info(f"🎵 Audio files: `{AUDIO_DIR}`")
+            st.info(f"📅 Organized: `{AUDIO_DIR}/organized`")
+            
+            if st.button("📊 View Storage Statistics"):
+                with st.spinner("Analyzing storage..."):
+                    # Get file statistics by type
+                    audio_stats = {}
+                    for ext in ['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac']:
+                        count = len(list(AUDIO_DIR.rglob(f"*.{ext}")))
+                        if count > 0:
+                            audio_stats[ext.upper()] = count
+                    
+                    if audio_stats:
+                        st.write("**Audio Files by Type:**")
+                        for ext, count in audio_stats.items():
+                            st.write(f"  {ext}: {count:,} files")
+                    
+                    # Get date organization stats
+                    organized_dir = AUDIO_DIR / "organized"
+                    if organized_dir.exists():
+                        date_dirs = [d for d in organized_dir.iterdir() if d.is_dir() and d.name.match(r"\d{4}-\d{2}")]
+                        if date_dirs:
+                            st.write("**Files by Date:**")
+                            for date_dir in sorted(date_dirs):
+                                count = len(list(date_dir.rglob("*.*")))
+                                st.write(f"  {date_dir.name}: {count:,} files")
+        
+        with col2:
+            st.write("**Quick Actions**")
+            
+            if st.button("🔄 Refresh File Count"):
+                st.rerun()
+            
+            if st.button("📋 Export File List"):
+                with st.spinner("Generating file list..."):
+                    all_files = []
+                    
+                    # Chat files
+                    for chat_file in TEXT_DIR.glob("*.txt"):
+                        all_files.append(f"CHAT: {chat_file.name}")
+                    
+                    # Audio files
+                    for audio_file in AUDIO_DIR.rglob("*.*"):
+                        if audio_file.suffix.lower() in ['.mp3', '.wav', '.opus', '.ogg', '.m4a', '.aac']:
+                            rel_path = audio_file.relative_to(AUDIO_DIR)
+                            all_files.append(f"AUDIO: {rel_path}")
+                    
+                    if all_files:
+                        file_list = "\n".join(sorted(all_files))
+                        st.download_button(
+                            label="📥 Download File List",
+                            data=file_list,
+                            file_name="die_waarheid_file_list.txt",
+                            mime="text/plain"
+                        )
+                    else:
+                        st.warning("No files found")
+            
+            if st.button("🧹 Cleanup Temporary Files"):
+                with st.spinner("Cleaning temporary files..."):
+                    cleaned = 0
+                    for temp_file in TEMP_DIR.glob("*.*"):
+                        if temp_file.is_file():
+                            temp_file.unlink()
+                            cleaned += 1
+                    st.success(f"✅ Cleaned {cleaned} temporary files")
 
 
 def page_audio_analysis():
@@ -416,6 +685,231 @@ def page_report_generation():
         st.write("- Legal Disclaimer")
 
 
+def page_speaker_training():
+    """Speaker training page"""
+    st.header("🎙️ Speaker Training")
+    
+    st.write("""
+    Train the AI to distinguish between two speakers by providing voice samples.
+    This ensures consistent speaker identification even if usernames change.
+    """)
+    
+    # Initialize speaker identification system
+    if 'speaker_system' not in st.session_state:
+        try:
+            from src.speaker_identification import SpeakerIdentificationSystem
+            st.session_state.speaker_system = SpeakerIdentificationSystem("MAIN_CASE")
+            st.success("✅ Speaker identification system initialized")
+        except Exception as e:
+            st.error(f"❌ Failed to initialize speaker system: {e}")
+            return
+    
+    system = st.session_state.speaker_system
+    
+    # Check if investigation is initialized
+    participants = system.get_all_participants()
+    
+    if len(participants) < 2:
+        st.subheader("🔧 Initialize Investigation")
+        st.write("First, set up the two participants for this investigation:")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            participant_a_name = st.text_input("Participant A Name:", value="Speaker A", key="participant_a")
+        
+        with col2:
+            participant_b_name = st.text_input("Participant B Name:", value="Speaker B", key="participant_b")
+        
+        if st.button("🚀 Initialize Investigation"):
+            if participant_a_name and participant_b_name:
+                try:
+                    participant_a_id, participant_b_id = system.initialize_investigation(
+                        participant_a_name, participant_b_name
+                    )
+                    st.success(f"✅ Investigation initialized!")
+                    st.info(f"Participant A: {participant_a_id}")
+                    st.info(f"Participant B: {participant_b_id}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Failed to initialize: {e}")
+            else:
+                st.error("Please enter names for both participants")
+    
+    else:
+        st.subheader("📊 Current Participants")
+        
+        for profile in participants:
+            with st.expander(f"👤 {profile.primary_username} ({profile.assigned_role.value})"):
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("Messages", profile.message_count)
+                
+                with col2:
+                    st.metric("Voice Notes", profile.voice_note_count)
+                
+                with col3:
+                    st.metric("Confidence", f"{profile.confidence_score:.2f}")
+                
+                st.write(f"**Voice Fingerprints:** {len(profile.voice_fingerprints)}")
+                st.write(f"**Alternate Usernames:** {', '.join(profile.alternate_usernames) if profile.alternate_usernames else 'None'}")
+        
+        st.subheader("🎯 Voice Sample Training")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**Train Speaker A**")
+            
+            # Get participant A
+            participant_a = next((p for p in participants if p.assigned_role.value == "participant_a"), None)
+            
+            if participant_a:
+                speaker_a_audio = st.file_uploader(
+                    f"Upload voice sample for {participant_a.primary_username}",
+                    type=['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac'],
+                    key="speaker_a_audio"
+                )
+                
+                if speaker_a_audio:
+                    st.info(f"📁 Selected: {speaker_a_audio.name}")
+                    
+                    if st.button(f"🎙️ Train {participant_a.primary_username}", key="train_a"):
+                        with st.spinner(f"Training {participant_a.primary_username}..."):
+                            try:
+                                # Save audio file temporarily
+                                temp_path = Path(TEMP_DIR) / speaker_a_audio.name
+                                with open(temp_path, "wb") as f:
+                                    f.write(speaker_a_audio.getbuffer())
+                                
+                                # Register voice note
+                                participant_id = system.register_voice_note(
+                                    participant_a.primary_username,
+                                    temp_path,
+                                    datetime.now()
+                                )
+                                
+                                if participant_id:
+                                    st.success(f"✅ Voice sample registered for {participant_a.primary_username}")
+                                    
+                                    # Clean up temp file
+                                    if temp_path.exists():
+                                        temp_path.unlink()
+                                    
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to register voice sample")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ Training failed: {e}")
+        
+        with col2:
+            st.write("**Train Speaker B**")
+            
+            # Get participant B
+            participant_b = next((p for p in participants if p.assigned_role.value == "participant_b"), None)
+            
+            if participant_b:
+                speaker_b_audio = st.file_uploader(
+                    f"Upload voice sample for {participant_b.primary_username}",
+                    type=['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac'],
+                    key="speaker_b_audio"
+                )
+                
+                if speaker_b_audio:
+                    st.info(f"📁 Selected: {speaker_b_audio.name}")
+                    
+                    if st.button(f"🎙️ Train {participant_b.primary_username}", key="train_b"):
+                        with st.spinner(f"Training {participant_b.primary_username}..."):
+                            try:
+                                # Save audio file temporarily
+                                temp_path = Path(TEMP_DIR) / speaker_b_audio.name
+                                with open(temp_path, "wb") as f:
+                                    f.write(speaker_b_audio.getbuffer())
+                                
+                                # Register voice note
+                                participant_id = system.register_voice_note(
+                                    participant_b.primary_username,
+                                    temp_path,
+                                    datetime.now()
+                                )
+                                
+                                if participant_id:
+                                    st.success(f"✅ Voice sample registered for {participant_b.primary_username}")
+                                    
+                                    # Clean up temp file
+                                    if temp_path.exists():
+                                        temp_path.unlink()
+                                    
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Failed to register voice sample")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ Training failed: {e}")
+        
+        st.subheader("🧪 Test Speaker Recognition")
+        
+        test_audio = st.file_uploader(
+            "Upload a voice note to test speaker identification",
+            type=['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac'],
+            key="test_audio"
+        )
+        
+        if test_audio:
+            if st.button("🔍 Test Speaker Identification"):
+                with st.spinner("Analyzing voice..."):
+                    try:
+                        # Save test audio temporarily
+                        temp_path = Path(TEMP_DIR) / test_audio.name
+                        with open(temp_path, "wb") as f:
+                            f.write(test_audio.getbuffer())
+                        
+                        # Test identification
+                        participant_id, confidence = system.identify_speaker(
+                            "test_user", 
+                            audio_file=temp_path
+                        )
+                        
+                        if participant_id:
+                            profile = system.get_participant(participant_id)
+                            if profile:
+                                st.success(f"🎯 Identified as: {profile.primary_username}")
+                                st.info(f"📊 Confidence: {confidence:.2f}")
+                                st.info(f"🔖 Role: {profile.assigned_role.value}")
+                            else:
+                                st.warning("⚠️ Speaker identified but profile not found")
+                        else:
+                            st.warning("⚠️ Could not identify speaker")
+                        
+                        # Clean up temp file
+                        if temp_path.exists():
+                            temp_path.unlink()
+                            
+                    except Exception as e:
+                        st.error(f"❌ Testing failed: {e}")
+        
+        st.subheader("📈 Training Status")
+        
+        summary = system.get_investigation_summary()
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Total Participants", len(summary['participants']))
+        
+        with col2:
+            st.metric("Total Voice Notes", summary['total_voice_notes'])
+        
+        with col3:
+            avg_confidence = sum(p['confidence_score'] for p in summary['participants']) / len(summary['participants'])
+            st.metric("Avg Confidence", f"{avg_confidence:.2f}")
+        
+        if st.button("🔄 Refresh Status"):
+            st.rerun()
+
+
 def page_settings():
     """Settings page"""
     st.header("⚙️ Settings")
@@ -485,6 +979,8 @@ def main():
         page_home()
     elif page == "📥 Data Import":
         page_data_import()
+    elif page == "🎙️ Speaker Training":
+        page_speaker_training()
     elif page == "🎙️ Audio Analysis":
         page_audio_analysis()
     elif page == "💬 Chat Analysis":

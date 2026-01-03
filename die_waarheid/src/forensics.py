@@ -19,7 +19,7 @@ from config import (
     INTENSITY_SPIKE_THRESHOLD,
     STRESS_WEIGHTS
 )
-from cache import AnalysisCache
+from src.cache import AnalysisCache
 
 logger = logging.getLogger(__name__)
 
