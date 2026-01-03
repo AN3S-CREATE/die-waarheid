@@ -131,18 +131,79 @@ def page_home():
     """Home page"""
     st.header("Welcome to Die Waarheid")
     
+    # Count REAL data
+    chat_files_count = len(list(TEXT_DIR.glob("*.txt")))
+    audio_files_count = sum(len(list(AUDIO_DIR.rglob(f"*.{ext}"))) for ext in ['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac'])
+    
+    # Determine analysis status
+    if audio_files_count > 0 or chat_files_count > 0:
+        status = "Ready"
+        status_detail = f"{audio_files_count + chat_files_count} files loaded"
+    else:
+        status = "Waiting"
+        status_detail = "No files loaded"
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Total Messages", "0", "Ready to analyze")
+        st.metric("Total Messages", chat_files_count, f"From {len(list(TEXT_DIR.glob('*.txt')))} files")
     
     with col2:
-        st.metric("Audio Files", "0", "Ready to process")
+        st.metric("Audio Files", audio_files_count, f"Across {len([d for d in AUDIO_DIR.iterdir() if d.is_dir()])} directories")
     
     with col3:
-        st.metric("Analysis Status", "Idle", "Waiting for input")
+        st.metric("Analysis Status", status, status_detail)
     
     st.divider()
+    
+    # Show real data summary
+    if audio_files_count > 0 or chat_files_count > 0:
+        st.subheader("📊 Your Data Summary")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("**📁 Audio Files by Type:**")
+            audio_types = {}
+            for ext in ['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac']:
+                count = len(list(AUDIO_DIR.rglob(f"*.{ext}")))
+                if count > 0:
+                    audio_types[ext.upper()] = count
+            
+            for ext, count in sorted(audio_types.items()):
+                st.write(f"  {ext}: {count:,} files")
+        
+        with col2:
+            st.write("**📝 Chat Files:**")
+            if chat_files_count > 0:
+                chat_files = list(TEXT_DIR.glob("*.txt"))
+                for chat_file in chat_files[:5]:  # Show first 5
+                    st.write(f"  📄 {chat_file.name}")
+                if len(chat_files) > 5:
+                    st.write(f"  ... and {len(chat_files) - 5} more files")
+            else:
+                st.write("  No chat files loaded")
+        
+        # Quick actions
+        st.subheader("🚀 Quick Actions")
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            if st.button("📥 Upload More Files"):
+                st.session_state.navigate_to = "📥 Data Import"
+        
+        with col2:
+            if st.button("🎙️ Train Speakers"):
+                st.session_state.navigate_to = "🎙️ Speaker Training"
+        
+        with col3:
+            if st.button("📈 View Analytics"):
+                st.session_state.navigate_to = "📈 Visualizations"
+        
+        # Handle navigation
+        if hasattr(st.session_state, 'navigate_to'):
+            st.rerun()
     
     st.subheader("Quick Start")
     
@@ -435,9 +496,19 @@ def page_data_import():
         
         # Count actual files
         chat_files_count = len(list(TEXT_DIR.glob("*.txt")))
-        audio_files_count = len(list(AUDIO_DIR.rglob("*.mp3")) + list(AUDIO_DIR.rglob("*.wav")) + 
-                               list(AUDIO_DIR.rglob("*.opus")) + list(AUDIO_DIR.rglob("*.ogg")) + 
-                               list(AUDIO_DIR.rglob("*.m4a")) + list(AUDIO_DIR.rglob("*.aac")))
+        
+        # Debug: Show what directories exist
+        audio_subdirs = [d for d in AUDIO_DIR.iterdir() if d.is_dir()]
+        st.write(f"🔍 Debug: Found {len(audio_subdirs)} audio subdirectories: {[d.name for d in audio_subdirs[:5]]}")
+        
+        # Count audio files by type for debugging
+        audio_counts = {}
+        for ext in ['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac']:
+            audio_counts[ext] = len(list(AUDIO_DIR.rglob(f"*.{ext}")))
+        
+        st.write(f"🔍 Debug: Audio files by type: {audio_counts}")
+        
+        audio_files_count = sum(audio_counts.values())
         
         col1, col2, col3 = st.columns(3)
         
