@@ -298,6 +298,15 @@ class ForensicsEngine:
             }
 
         try:
+            # Validate audio data before analysis
+            if self.audio_data is None or len(self.audio_data) == 0:
+                logger.error("Empty or invalid audio data")
+                return {
+                    'success': False,
+                    'message': "Empty or invalid audio data",
+                    'filename': str(file_path)
+                }
+            
             f0, times = self.extract_pitch()
             
             pitch_volatility = self.calculate_pitch_volatility(f0)

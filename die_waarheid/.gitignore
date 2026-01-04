@@ -46,6 +46,32 @@ data/output/*
 !data/temp/.gitkeep
 !data/output/.gitkeep
 
+# Database Files - PRIVACY: No investigation databases on GitHub
+*.db
+*.sqlite
+*.sqlite3
+investigations.db
+
+# Statement Files - PRIVACY: No case statements on GitHub
+statement.txt
+statements/
+case_files/
+
+# Audio/Video Files - PRIVACY: No media files on GitHub
+*.wav
+*.mp3
+*.mp4
+*.ogg
+*.flac
+*.m4a
+
+# Export Files - PRIVACY: No exported data on GitHub
+exports/
+reports/
+*.csv
+*.xlsx
+*.pdf
+
 # Logs
 *.log
 logs/

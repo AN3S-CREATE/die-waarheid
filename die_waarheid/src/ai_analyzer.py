@@ -298,6 +298,19 @@ Be concise and return only valid JSON."""
         if not messages:
             return {'success': False, 'message': 'No messages to analyze'}
 
+        if not self.configured:
+            logger.warning("Gemini not configured")
+            return {
+                'success': False,
+                'message': 'AI analysis not available - Gemini not configured',
+                'overall_tone': 'unknown',
+                'power_dynamics': 'unknown',
+                'communication_style': 'unknown',
+                'conflict_level': 0,
+                'manipulation_indicators': [],
+                'summary': 'AI analysis unavailable'
+            }
+
         try:
             conversation_text = "\n".join([
                 f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}"
@@ -439,6 +452,19 @@ Return only valid JSON."""
         """
         if not messages:
             return {'success': False, 'message': 'No messages to analyze'}
+
+        if not self.configured:
+            logger.warning("Gemini not configured")
+            return {
+                'success': False,
+                'message': 'AI analysis not available - Gemini not configured',
+                'personality_traits': [],
+                'behavioral_patterns': [],
+                'risk_factors': [],
+                'communication_style': 'unknown',
+                'psychological_state': 'unknown',
+                'recommendations': ['AI analysis unavailable - configure Gemini API key']
+            }
 
         try:
             conversation_text = "\n".join([
