@@ -13,6 +13,8 @@ from functools import wraps
 try:
     import google.generativeai as genai
     GENAI_AVAILABLE = True
+    import warnings
+    warnings.filterwarnings("ignore", message=".*google.generativeai.*deprecated.*")
 except ImportError:
     GENAI_AVAILABLE = False
     genai = None
@@ -114,8 +116,8 @@ class AIAnalyzer:
                 logger.warning("google.generativeai not installed; AIAnalyzer disabled")
                 return False
 
-            if not GEMINI_API_KEY:
-                logger.warning("GEMINI_API_KEY not set in environment")
+            if not GEMINI_API_KEY or GEMINI_API_KEY == "placeholder_gemini_key":
+                logger.warning("GEMINI_API_KEY not set or using placeholder value. AI analysis will be disabled.")
                 return False
 
             genai.configure(api_key=GEMINI_API_KEY)
