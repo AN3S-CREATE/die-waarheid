@@ -178,7 +178,11 @@ CLEANUP_DELAY_HOURS = 24
 # ==============================================================================
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
-LOG_FILE = BASE_DIR / "die_waarheid.log"
+LOG_DIR = BASE_DIR / "logs"
+LOG_FILE = LOG_DIR / "die_waarheid.log"
+
+# Create logs directory
+LOG_DIR.mkdir(exist_ok=True)
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),

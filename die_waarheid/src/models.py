@@ -3,7 +3,7 @@ Pydantic data models for Die Waarheid
 Structured data validation for all major components
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -32,7 +32,8 @@ class ForensicsResult(BaseModel):
     message: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.now)
 
-    @validator('filename')
+    @field_validator('filename')
+    @classmethod
     def filename_not_empty(cls, v):
         if not v or not v.strip():
             raise ValueError('Filename cannot be empty')
@@ -44,15 +45,17 @@ class Message(BaseModel):
     timestamp: datetime
     sender: str = Field(min_length=1)
     text: str
-    message_type: str = Field(default="text", regex="^(text|image|audio|video|media|link)$")
+    message_type: str = Field(default="text", pattern="^(text|image|audio|video|media|link)$")
 
-    @validator('sender')
+    @field_validator('sender')
+    @classmethod
     def sender_not_empty(cls, v):
         if not v or not v.strip():
             raise ValueError('Sender cannot be empty')
         return v.strip()
 
-    @validator('text')
+    @field_validator('text')
+    @classmethod
     def text_not_empty(cls, v):
         if not v or not v.strip():
             raise ValueError('Text cannot be empty')
@@ -63,9 +66,9 @@ class ConversationAnalysis(BaseModel):
     """Conversation-level analysis result"""
     success: bool
     total_messages: int = Field(ge=0)
-    overall_tone: str = Field(regex="^(positive|negative|neutral|mixed|unknown)$")
-    power_dynamics: str = Field(regex="^(balanced|one_sided|abusive|unknown)$")
-    communication_style: str = Field(regex="^(direct|indirect|passive_aggressive|unknown)$")
+    overall_tone: str = Field(pattern="^(positive|negative|neutral|mixed|unknown)$")
+    power_dynamics: str = Field(pattern="^(balanced|one_sided|abusive|unknown)$")
+    communication_style: str = Field(pattern="^(direct|indirect|passive_aggressive|unknown)$")
     conflict_level: float = Field(ge=0, le=1)
     manipulation_indicators: List[str] = Field(default_factory=list)
     summary: str = ""
@@ -77,7 +80,7 @@ class ContradictionAnalysis(BaseModel):
     success: bool
     contradictions: List[Dict[str, str]] = Field(default_factory=list)
     inconsistency_score: float = Field(ge=0, le=1)
-    reliability_assessment: str = Field(regex="^(high|medium|low|unknown)$")
+    reliability_assessment: str = Field(pattern="^(high|medium|low|unknown)$")
     message: Optional[str] = None
 
 
@@ -86,10 +89,10 @@ class PsychologicalProfile(BaseModel):
     success: bool
     personality_traits: List[str] = Field(default_factory=list)
     communication_patterns: List[str] = Field(default_factory=list)
-    emotional_regulation: str = Field(regex="^(low|moderate|high|unknown)$")
+    emotional_regulation: str = Field(pattern="^(low|moderate|high|unknown)$")
     stress_indicators: List[str] = Field(default_factory=list)
     relationship_dynamics: str = ""
-    risk_assessment: str = Field(regex="^(low|medium|high|unknown)$")
+    risk_assessment: str = Field(pattern="^(low|medium|high|unknown)$")
     recommendations: List[str] = Field(default_factory=list)
     message: Optional[str] = None
 
@@ -122,9 +125,9 @@ class MessageAnalysis(BaseModel):
     """Single message analysis result"""
     success: bool
     text: str
-    emotion: str = Field(regex="^(positive|negative|neutral|mixed|unknown)$")
+    emotion: str = Field(pattern="^(positive|negative|neutral|mixed|unknown)$")
     toxicity_score: float = Field(ge=0, le=1)
-    aggression_level: str = Field(regex="^(low|medium|high)$")
+    aggression_level: str = Field(pattern="^(low|medium|high)$")
     confidence: float = Field(ge=0, le=1)
     message: Optional[str] = None
 
@@ -163,7 +166,7 @@ class AnalysisSession(BaseModel):
     total_audio_analyzed: int = Field(ge=0, default=0)
     average_stress_level: Optional[float] = Field(None, ge=0, le=100)
     trust_score: Optional[float] = Field(None, ge=0, le=100)
-    status: str = Field(regex="^(active|completed|paused|error)$", default="active")
+    status: str = Field(pattern="^(active|completed|paused|error)$", default="active")
 
 
 if __name__ == "__main__":
