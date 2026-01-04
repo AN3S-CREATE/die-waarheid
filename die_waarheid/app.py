@@ -192,19 +192,19 @@ def page_home():
         
         with col1:
             if st.button("📥 Upload More Files"):
-                st.session_state.navigate_to = "📥 Data Import"
+                st.session_state.current_page = "📥 Data Import"
+                st.rerun()
         
         with col2:
             if st.button("🎙️ Train Speakers"):
-                st.session_state.navigate_to = "🎙️ Speaker Training"
+                st.session_state.current_page = "🎙️ Speaker Training"
+                st.rerun()
         
         with col3:
             if st.button("📈 View Analytics"):
-                st.session_state.navigate_to = "📈 Visualizations"
+                st.session_state.current_page = "📈 Visualizations"
+                st.rerun()
         
-        # Handle navigation
-        if hasattr(st.session_state, 'navigate_to'):
-            st.rerun()
     
     st.subheader("Quick Start")
     
@@ -245,8 +245,16 @@ def page_data_import():
         
         if st.button("🔐 Authenticate with Google Drive"):
             with st.spinner("Authenticating..."):
-                handler = GDriveHandler()
-                success, message = handler.authenticate()
+                try:
+                    handler = GDriveHandler()
+                except Exception as e:
+                    st.error(f"Failed to initialize Google Drive: {str(e)}")
+                    return
+                
+                try:
+                    success, message = handler.authenticate()
+                except Exception as e:
+                    success, message = False, f"Authentication failed: {str(e)}"
                 
                 if success:
                     st.success(message)
@@ -1505,7 +1513,15 @@ def main():
     setup_page()
     render_header()
     
-    page = render_sidebar()
+    # Get current page from session state or sidebar
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = render_sidebar()
+    else:
+        page = render_sidebar()
+        if page != st.session_state.current_page:
+            st.session_state.current_page = page
+    
+    page = st.session_state.current_page
     
     if page == "🏠 Home":
         page_home()
