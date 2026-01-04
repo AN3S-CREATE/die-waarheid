@@ -188,7 +188,8 @@ class SpeakerIdentificationSystem:
         self.case_id = case_id
         
         if db_path is None:
-            db_path = Path("data/investigations.db")
+            from config import DATA_DIR
+            db_path = DATA_DIR / "investigations.db"
         
         db_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -222,7 +223,7 @@ class SpeakerIdentificationSystem:
             for speaker in speakers:
                 profile = ParticipantProfile(
                     participant_id=speaker.participant_id,
-                    assigned_role=SpeakerRole[speaker.assigned_role] if speaker.assigned_role else SpeakerRole.UNKNOWN,
+                    assigned_role=self._get_speaker_role(speaker.assigned_role),
                     primary_username=speaker.primary_username or "Unknown",
                     alternate_usernames=speaker.alternate_usernames or [],
                     voice_fingerprints=[],
@@ -248,6 +249,19 @@ class SpeakerIdentificationSystem:
 
         finally:
             session.close()
+    
+    def _get_speaker_role(self, role_str: str) -> SpeakerRole:
+        """Convert string to SpeakerRole enum safely"""
+        if not role_str:
+            return SpeakerRole.UNKNOWN
+        
+        role_mapping = {
+            "participant_a": SpeakerRole.PARTICIPANT_A,
+            "participant_b": SpeakerRole.PARTICIPANT_B,
+            "unknown": SpeakerRole.UNKNOWN
+        }
+        
+        return role_mapping.get(role_str.lower(), SpeakerRole.UNKNOWN)
 
     def initialize_investigation(
         self,
@@ -366,7 +380,7 @@ class SpeakerIdentificationSystem:
         # Try voice matching if audio available
         if audio_file and audio_file.exists():
             participant_id, confidence = self._match_by_voice(audio_file)
-            if confidence > 0.7:
+            if confidence > 0.3:  # Lower threshold for better matching
                 self._map_username_to_participant(username, participant_id, confidence, verified_by_voice=True)
                 return participant_id, confidence
 
@@ -378,17 +392,7 @@ class SpeakerIdentificationSystem:
                 return participant_id, confidence
 
         # Default: try to match to existing participants
-        if len(self.participants) == 2:
-            # If only 2 participants and username doesn't match either, assign to the one with fewer messages
-            participants = list(self.participants.values())
-            if participants[0].message_count <= participants[1].message_count:
-                participant_id = participants[0].participant_id
-            else:
-                participant_id = participants[1].participant_id
-            
-            self._map_username_to_participant(username, participant_id, 0.5)
-            return participant_id, 0.5
-
+        # If no match found, return empty (don't assign to random speaker)
         logger.warning(f"Could not identify speaker: {username}")
         return "", 0.0
 
@@ -404,18 +408,24 @@ class SpeakerIdentificationSystem:
             # Compare with existing participants
             best_match = ""
             best_score = 0.0
-
+            
+            logger.debug(f"Comparing with {len(self.participants)} participants")
             for participant_id, profile in self.participants.items():
                 if not profile.voice_fingerprints:
+                    logger.debug(f"Participant {participant_id} has no voice fingerprints")
                     continue
-
+                
+                logger.debug(f"Comparing with participant {participant_id} ({len(profile.voice_fingerprints)} fingerprints)")
+                
                 # Compare fingerprints
                 for existing_fp in profile.voice_fingerprints:
                     similarity = self._compare_fingerprints(fingerprint, existing_fp)
+                    logger.debug(f"Fingerprint similarity: {similarity:.3f}")
                     if similarity > best_score:
                         best_score = similarity
                         best_match = participant_id
-
+            
+            logger.debug(f"Best match: {best_match} with score {best_score:.3f}")
             return best_match, best_score
 
         except Exception as e:
@@ -433,7 +443,7 @@ class SpeakerIdentificationSystem:
 
             # Extract MFCC
             mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-            mfcc_mean = np.mean(mfcc, axis=1).tolist()
+            mfcc_mean = [float(x) for x in np.mean(mfcc, axis=1)]
 
             # Extract pitch
             pitches, magnitudes = librosa.piptrack(y=y, sr=sr)
@@ -442,12 +452,12 @@ class SpeakerIdentificationSystem:
                 index = magnitudes[:, t].argmax()
                 pitch = pitches[index, t]
                 if pitch > 0:
-                    pitch_values.append(pitch)
+                    pitch_values.append(float(pitch))
 
-            pitch_range = (min(pitch_values), max(pitch_values)) if pitch_values else (0, 0)
+            pitch_range = (min(pitch_values), max(pitch_values)) if pitch_values else (0.0, 0.0)
 
             # Speech rate (simple estimation)
-            speech_rate = len(y) / sr
+            speech_rate = float(len(y) / sr)
 
             # Create fingerprint
             fingerprint_hash = hashlib.sha256(
