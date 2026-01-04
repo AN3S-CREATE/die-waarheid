@@ -35,6 +35,8 @@ scipy>=1.11.0
 openai-whisper>=20231117
 
 # Google Generative AI for expert panel & AI analysis
+# Note: google-generativeai is deprecated, but keeping for compatibility
+# TODO: Migrate to google-genai when available
 google-generativeai>=0.3.0
 
 # Speaker diarization (optional - fallback available)
