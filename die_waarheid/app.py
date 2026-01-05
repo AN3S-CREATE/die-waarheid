@@ -508,14 +508,14 @@ def page_data_import():
         
         # Debug: Show what directories exist
         audio_subdirs = [d for d in AUDIO_DIR.iterdir() if d.is_dir()]
-        st.write(f"🔍 Debug: Found {len(audio_subdirs)} audio subdirectories: {[d.name for d in audio_subdirs[:5]]}")
+        logger.info(f"Found {len(audio_subdirs)} audio subdirectories")
         
         # Count audio files by type for debugging
         audio_counts = {}
         for ext in ['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac']:
             audio_counts[ext] = len(list(AUDIO_DIR.rglob(f"*.{ext}")))
         
-        st.write(f"🔍 Debug: Audio files by type: {audio_counts}")
+        logger.info(f"Audio files by type: {audio_counts}")
         
         audio_files_count = sum(audio_counts.values())
         
@@ -1132,7 +1132,7 @@ def page_speaker_training():
     if 'speaker_system' not in st.session_state:
         try:
             from src.speaker_identification import SpeakerIdentificationSystem
-            st.write("🔍 Debug: Attempting to initialize speaker system...")
+            logger.info("Attempting to initialize speaker system...")
             st.session_state.speaker_system = SpeakerIdentificationSystem("MAIN_CASE")
             st.success("✅ Speaker identification system initialized")
         except Exception as e:
