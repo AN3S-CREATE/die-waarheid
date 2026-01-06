@@ -6,9 +6,10 @@ Gemini-powered psychological profiling and pattern detection
 import logging
 import re
 import time
+import hashlib
 from typing import Dict, List, Optional, Tuple, Callable
 from datetime import datetime
-from functools import wraps
+from functools import wraps, lru_cache
 
 try:
     import google.generativeai as genai
@@ -77,10 +78,15 @@ class AIAnalyzer:
     Performs psychological profiling, contradiction detection, and pattern matching
     """
 
-    def __init__(self):
+    def __init__(self, cache_size: int = 1000):
         self.configured = False
         self.model = None
+        self.cache_size = cache_size
+        self.cache_hits = 0
+        self.cache_misses = 0
         self.configure_gemini()
+        # Initialize LRU cache for AI responses
+        self._init_cache()
 
     def sanitize_input(self, text: str, max_length: int = 10000) -> str:
         """
@@ -133,29 +139,27 @@ class AIAnalyzer:
             logger.error(f"Error configuring Gemini: {str(e)}")
             return False
 
-    @rate_limit(calls_per_minute=30)
-    @retry_with_backoff(max_attempts=3, base_delay=2.0)
-    def analyze_message(self, text: str) -> Dict:
-        """
-        Analyze a single message for toxicity, emotion, and patterns
-
-        Args:
-            text: Message text to analyze
-
-        Returns:
-            Dictionary with analysis results
-        """
+    def _init_cache(self):
+        """Initialize LRU cache for AI responses"""
+        # Create a cached version of the analysis function
+        self._cached_analyze = lru_cache(maxsize=self.cache_size)(self._analyze_uncached)
+        
+    def _get_text_hash(self, text: str) -> str:
+        """Generate hash for text to use as cache key"""
+        return hashlib.md5(text.encode('utf-8')).hexdigest()
+    
+    def _analyze_uncached(self, text_hash: str, text: str) -> Dict:
+        """Internal method for actual AI analysis (not cached)"""
         if not self.configured:
             logger.warning("Gemini not configured")
             return {
                 'success': False,
-                'message': 'Gemini not configured',
-                'text': text
+                'error': 'Gemini not configured',
+                'text': text,
+                'cached': False
             }
 
         try:
-            text = self.sanitize_input(text)
-            
             prompt = f"""Analyze this message for psychological indicators:
 
 Message: "{text}"
@@ -194,16 +198,152 @@ Be concise and return only valid JSON."""
                 'emotion': analysis.get('emotion', 'unknown'),
                 'toxicity_score': float(analysis.get('toxicity_score', 0)),
                 'aggression_level': analysis.get('aggression_level', 'low'),
-                'confidence': float(analysis.get('confidence', 0))
+                'confidence': float(analysis.get('confidence', 0)),
+                'cached': False
             }
 
         except Exception as e:
-            logger.error(f"Error analyzing message: {str(e)}")
+            error_msg = str(e)
+            
+            # Handle quota exceeded gracefully
+            if "429" in error_msg or "quota" in error_msg.lower():
+                logger.warning(f"API quota exceeded: {error_msg}")
+                return {
+                    'success': False,
+                    'error': 'API quota exceeded. Please check your billing.',
+                    'error_type': 'quota_exceeded',
+                    'text': text,
+                    'cached': False
+                }
+            
+            # Sanitize error to avoid exposing API keys
+            if 'api' in error_msg.lower() and 'key' in error_msg.lower():
+                logger.error("Invalid API credentials")
+                return {
+                    'success': False,
+                    'error': 'Invalid API credentials',
+                    'text': text,
+                    'cached': False
+                }
+            
+            logger.error(f"Error analyzing message: {error_msg}")
             return {
                 'success': False,
-                'message': f'Analysis error: {str(e)}',
-                'text': text
+                'error': f'Analysis error: {error_msg}',
+                'text': text,
+                'cached': False
             }
+
+    def analyze_message(self, text: str) -> Dict:
+        """
+        Analyze a single message for toxicity, emotion, and patterns
+        Uses caching to avoid repeated API calls
+
+        Args:
+            text: Message text to analyze
+
+        Returns:
+            Dictionary with analysis results
+        """
+        text = self.sanitize_input(text)
+        text_hash = self._get_text_hash(text)
+        
+        # Try cache first
+        try:
+            result = self._cached_analyze(text_hash, text)
+            
+            # Check if result is an error (quota exceeded, etc.)
+            if not result.get('success') and result.get('error_type') == 'quota_exceeded':
+                logger.warning("API quota exceeded, using fallback analysis")
+                return self.analyze_message_fallback(text)
+            
+            if result.get('cached', False):
+                self.cache_hits += 1
+                logger.debug(f"Cache hit for text hash: {text_hash[:8]}...")
+            else:
+                self.cache_misses += 1
+                # Mark as cached for future requests
+                result['cached'] = True
+                # Update cache
+                self._cached_analyze(text_hash, text)
+            return result
+        except Exception as e:
+            logger.error(f"Error in cached analysis: {str(e)}")
+            # Fall back to pattern-based analysis
+            return self.analyze_message_fallback(text)
+    
+    def analyze_message_fallback(self, text: str) -> Dict:
+        """
+        Fallback analysis when AI is unavailable
+        Uses pattern matching and heuristics
+
+        Args:
+            text: Message text to analyze
+
+        Returns:
+            Dictionary with analysis results
+        """
+        text_lower = text.lower()
+        
+        # Simple pattern matching for toxicity
+        toxic_words = ['stupid', 'hate', 'idiot', 'shut up', 'dumb', 'useless', 'pathetic']
+        toxicity_score = min(1.0, sum(1 for word in toxic_words if word in text_lower) / 3.0)
+        
+        # Emotion detection based on keywords
+        positive_words = ['happy', 'good', 'great', 'love', 'thank', 'please', 'yes']
+        negative_words = ['angry', 'bad', 'terrible', 'hate', 'no', 'wrong', 'stupid']
+        
+        positive_count = sum(1 for word in positive_words if word in text_lower)
+        negative_count = sum(1 for word in negative_words if word in text_lower)
+        
+        if positive_count > negative_count:
+            emotion = 'positive'
+        elif negative_count > positive_count:
+            emotion = 'negative'
+        else:
+            emotion = 'neutral'
+        
+        # Aggression level based on exclamation marks and caps
+        aggression_indicators = text.count('!') + sum(1 for c in text if c.isupper())
+        if aggression_indicators > 3:
+            aggression_level = 'high'
+        elif aggression_indicators > 1:
+            aggression_level = 'medium'
+        else:
+            aggression_level = 'low'
+        
+        # Confidence based on text length and patterns found
+        confidence = min(0.8, len(text) / 100.0 + 0.3)
+        
+        return {
+            'success': True,
+            'text': text,
+            'emotion': emotion,
+            'toxicity_score': toxicity_score,
+            'aggression_level': aggression_level,
+            'confidence': confidence,
+            'fallback': True,
+            'cached': False
+        }
+    
+    def get_cache_stats(self) -> Dict:
+        """Get cache performance statistics"""
+        total_requests = self.cache_hits + self.cache_misses
+        hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0
+        
+        return {
+            'cache_hits': self.cache_hits,
+            'cache_misses': self.cache_misses,
+            'hit_rate_percent': hit_rate,
+            'cache_size': self.cache_size
+        }
+    
+    def clear_cache(self):
+        """Clear the analysis cache"""
+        self._cached_analyze.cache_clear()
+        self.cache_hits = 0
+        self.cache_misses = 0
+        logger.info("Analysis cache cleared")
 
     def detect_gaslighting(self, text: str) -> Dict:
         """

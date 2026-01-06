@@ -739,6 +739,19 @@ class SpeakerIdentificationSystem:
 
         return summary
 
+    def close(self):
+        """Close database connections and cleanup resources"""
+        try:
+            if hasattr(self, 'engine'):
+                self.engine.dispose()
+                logger.info("Database connections closed")
+        except Exception as e:
+            logger.error(f"Error closing database connections: {str(e)}")
+    
+    def __del__(self):
+        """Destructor to ensure connections are closed"""
+        self.close()
+
 
 if __name__ == "__main__":
     system = SpeakerIdentificationSystem("CASE_001")

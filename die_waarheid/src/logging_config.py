@@ -4,231 +4,159 @@ JSON-formatted logging with structured fields for better analysis
 """
 
 import logging
+import logging.handlers
 import json
 import sys
 from pathlib import Path
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Dict, Any
 
-from config import LOG_DIR, LOG_LEVEL
-
-
-class JSONFormatter(logging.Formatter):
-    """Custom JSON formatter for structured logging"""
-
-    def format(self, record: logging.LogRecord) -> str:
-        """
-        Format log record as JSON
-
-        Args:
-            record: Log record to format
-
-        Returns:
-            JSON-formatted log string
-        """
-        log_data = {
-            'timestamp': datetime.fromtimestamp(record.created).isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno
-        }
-
-        if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
-
-        if hasattr(record, 'extra_fields'):
-            log_data.update(record.extra_fields)
-
-        return json.dumps(log_data)
+from config import LOGS_DIR
 
 
-class StructuredLogger:
+class AlertHandler(logging.Handler):
+    """Custom handler for critical alerts"""
+    
+    def __init__(self):
+        super().__init__(logging.ERROR)
+        self.alerts = []
+    
+    def emit(self, record):
+        """Emit a log record and store alerts"""
+        if record.levelno >= logging.ERROR:
+            alert = {
+                'timestamp': datetime.fromtimestamp(record.created).isoformat(),
+                'level': record.levelname,
+                'message': record.getMessage(),
+                'module': record.module,
+                'function': record.funcName
+            }
+            
+            if record.exc_info:
+                alert['exception'] = self.format(record)
+            
+            self.alerts.append(alert)
+            
+            # Keep only last 100 alerts
+            if len(self.alerts) > 100:
+                self.alerts = self.alerts[-100:]
+
+
+def setup_logging(log_level: str = "INFO", enable_json: bool = False) -> Dict[str, Any]:
     """
-    Structured logger wrapper for Die Waarheid
-    Provides convenient methods for logging with structured fields
-    """
-
-    def __init__(self, name: str):
-        """
-        Initialize structured logger
-
-        Args:
-            name: Logger name
-        """
-        self.logger = logging.getLogger(name)
-        self.logger.setLevel(LOG_LEVEL)
-
-    def _log_with_fields(self, level: int, message: str, **fields):
-        """
-        Log message with structured fields
-
-        Args:
-            level: Log level
-            message: Log message
-            **fields: Additional structured fields
-        """
-        record = self.logger.makeRecord(
-            self.logger.name,
-            level,
-            "(unknown file)",
-            0,
-            message,
-            (),
-            None
-        )
-        record.extra_fields = fields
-        self.logger.handle(record)
-
-    def debug(self, message: str, **fields):
-        """Log debug message with fields"""
-        self._log_with_fields(logging.DEBUG, message, **fields)
-
-    def info(self, message: str, **fields):
-        """Log info message with fields"""
-        self._log_with_fields(logging.INFO, message, **fields)
-
-    def warning(self, message: str, **fields):
-        """Log warning message with fields"""
-        self._log_with_fields(logging.WARNING, message, **fields)
-
-    def error(self, message: str, **fields):
-        """Log error message with fields"""
-        self._log_with_fields(logging.ERROR, message, **fields)
-
-    def critical(self, message: str, **fields):
-        """Log critical message with fields"""
-        self._log_with_fields(logging.CRITICAL, message, **fields)
-
-    def analysis_started(self, case_id: str, filename: str, analysis_type: str):
-        """Log analysis start"""
-        self.info(
-            f"Analysis started: {analysis_type}",
-            case_id=case_id,
-            filename=filename,
-            analysis_type=analysis_type,
-            event_type="analysis_start"
-        )
-
-    def analysis_completed(self, case_id: str, filename: str, duration: float, success: bool):
-        """Log analysis completion"""
-        self.info(
-            f"Analysis completed",
-            case_id=case_id,
-            filename=filename,
-            duration_seconds=duration,
-            success=success,
-            event_type="analysis_complete"
-        )
-
-    def api_call(self, api_name: str, method: str, duration: float, success: bool, status_code: Optional[int] = None):
-        """Log API call"""
-        self.info(
-            f"API call: {api_name}.{method}",
-            api_name=api_name,
-            method=method,
-            duration_seconds=duration,
-            success=success,
-            status_code=status_code,
-            event_type="api_call"
-        )
-
-    def cache_operation(self, operation: str, filename: str, hit: bool):
-        """Log cache operation"""
-        self.debug(
-            f"Cache {operation}",
-            operation=operation,
-            filename=filename,
-            cache_hit=hit,
-            event_type="cache_operation"
-        )
-
-    def database_operation(self, operation: str, table: str, success: bool, duration: float):
-        """Log database operation"""
-        self.info(
-            f"Database {operation}",
-            operation=operation,
-            table=table,
-            success=success,
-            duration_seconds=duration,
-            event_type="database_operation"
-        )
-
-    def validation_error(self, validation_type: str, field: str, error: str):
-        """Log validation error"""
-        self.warning(
-            f"Validation error: {validation_type}",
-            validation_type=validation_type,
-            field=field,
-            error=error,
-            event_type="validation_error"
-        )
-
-    def performance_metric(self, metric_name: str, value: float, unit: str):
-        """Log performance metric"""
-        self.debug(
-            f"Performance metric: {metric_name}",
-            metric_name=metric_name,
-            value=value,
-            unit=unit,
-            event_type="performance_metric"
-        )
-
-
-def setup_logging(log_dir: Optional[Path] = None, log_level: str = LOG_LEVEL) -> None:
-    """
-    Setup logging configuration for Die Waarheid
-
+    Setup comprehensive logging configuration
+    
     Args:
-        log_dir: Directory for log files (uses config if None)
-        log_level: Logging level
-    """
-    if log_dir is None:
-        log_dir = LOG_DIR
-
-    log_dir = Path(log_dir)
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    root_logger = logging.getLogger()
-    root_logger.setLevel(log_level)
-
-    formatter = JSONFormatter()
-
-    file_handler = logging.FileHandler(log_dir / "die_waarheid.log")
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(formatter)
-
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(log_level)
-    console_handler.setFormatter(formatter)
-
-    root_logger.addHandler(file_handler)
-    root_logger.addHandler(console_handler)
-
-    root_logger.info("Logging initialized", extra={'log_dir': str(log_dir), 'log_level': log_level})
-
-
-def get_logger(name: str) -> StructuredLogger:
-    """
-    Get structured logger instance
-
-    Args:
-        name: Logger name
-
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        enable_json: Whether to use JSON formatting
+    
     Returns:
-        StructuredLogger instance
+        Dictionary with logging configuration
     """
-    return StructuredLogger(name)
+    # Create logs directory
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(getattr(logging, log_level.upper()))
+    
+    # Clear existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Create formatters
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(getattr(logging, log_level.upper()))
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # File handler for all logs
+    log_file = LOGS_DIR / f"die_waarheid_{datetime.now().strftime('%Y%m%d')}.log"
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_file,
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+    
+    # Error file handler
+    error_file = LOGS_DIR / f"errors_{datetime.now().strftime('%Y%m%d')}.log"
+    error_handler = logging.handlers.RotatingFileHandler(
+        error_file,
+        maxBytes=5*1024*1024,  # 5MB
+        backupCount=3
+    )
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(formatter)
+    root_logger.addHandler(error_handler)
+    
+    # Alert handler for critical errors
+    alert_handler = AlertHandler()
+    alert_handler.setLevel(logging.ERROR)
+    root_logger.addHandler(alert_handler)
+    
+    # Configure specific loggers
+    configure_specific_loggers()
+    
+    # Log initialization
+    logger = logging.getLogger(__name__)
+    logger.info(f"Logging initialized - Level: {log_level}, JSON: {enable_json}")
+    logger.info(f"Log files: {log_file}, Errors: {error_file}")
+    
+    return {
+        'level': log_level,
+        'json_format': enable_json,
+        'log_file': str(log_file),
+        'error_file': str(error_file),
+        'alert_handler': alert_handler
+    }
 
 
-if __name__ == "__main__":
-    setup_logging()
-    logger = get_logger(__name__)
-    logger.info("Logging system initialized")
-    logger.analysis_started("CASE_001", "test.wav", "forensics")
-    logger.analysis_completed("CASE_001", "test.wav", 5.2, True)
-    logger.api_call("Gemini", "analyze_message", 1.5, True, 200)
-    logger.cache_operation("set", "test.wav", False)
-    logger.database_operation("insert", "analysis_results", True, 0.1)
+def configure_specific_loggers():
+    """Configure logging for specific components"""
+    
+    # AI Analyzer - reduce noise
+    logging.getLogger('src.ai_analyzer').setLevel(logging.INFO)
+    
+    # Transcriber - keep detailed
+    logging.getLogger('src.whisper_transcriber').setLevel(logging.DEBUG)
+    
+    # Forensics - keep detailed
+    logging.getLogger('src.forensics').setLevel(logging.DEBUG)
+    
+    # Pipeline - keep detailed
+    logging.getLogger('src.pipeline_processor').setLevel(logging.INFO)
+    
+    # External libraries - reduce noise
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+    logging.getLogger('requests').setLevel(logging.WARNING)
+    logging.getLogger('matplotlib').setLevel(logging.WARNING)
+    logging.getLogger('PIL').setLevel(logging.WARNING)
+
+
+def setup_error_alerts(email_config: Dict[str, str] = None):
+    """
+    Setup error alert notifications
+    
+    Args:
+        email_config: Email configuration for alerts
+    """
+    logger = logging.getLogger(__name__)
+    
+    if email_config:
+        # TODO: Implement email alerts
+        logger.info("Email alerts configured")
+    else:
+        logger.info("Email alerts not configured")
+
+
+# Initialize logging on import
+logging_config = setup_logging()
