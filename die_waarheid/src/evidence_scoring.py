@@ -381,8 +381,8 @@ class EvidenceScoringSystem:
         ]])
         unreliable = len([s for s in scores_list if s.reliability_rating == EvidenceReliability.UNRELIABLE])
 
-        avg_strength = sum(s.overall_strength for s in scores_list) / len(scores_list)
-        avg_reliability = sum(s.reliability_score for s in scores_list) / len(scores_list)
+        avg_strength = sum(s.overall_strength for s in scores_list) / len(scores_list) if scores_list else 0.0
+        avg_reliability = sum(s.reliability_score for s in scores_list) / len(scores_list) if scores_list else 0.0
 
         return {
             'total_evidence': len(scores_list),

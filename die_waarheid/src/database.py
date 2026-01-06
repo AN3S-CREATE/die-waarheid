@@ -8,10 +8,12 @@ import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import StaticPool, QueuePool
 
 from config import TEMP_DIR
 
@@ -20,6 +22,12 @@ logger = logging.getLogger(__name__)
 Base = declarative_base()
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{TEMP_DIR}/die_waarheid.db")
+
+# Database connection pool settings
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
+DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+DB_POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "3600"))  # 1 hour
+DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))  # 30 seconds
 
 
 class AnalysisResult(Base):
@@ -130,24 +138,99 @@ class DatabaseManager:
 
     def initialize(self) -> bool:
         """
-        Initialize database connection and create tables
+        Initialize database connection with connection pooling and create tables
 
         Returns:
             True if successful
         """
         try:
-            self.engine = create_engine(
-                self.database_url,
-                connect_args={"check_same_thread": False} if "sqlite" in self.database_url else {}
+            # Configure connection pooling based on database type
+            if "sqlite" in self.database_url:
+                # SQLite configuration with StaticPool for thread safety
+                self.engine = create_engine(
+                    self.database_url,
+                    connect_args={
+                        "check_same_thread": False,
+                        "timeout": DB_POOL_TIMEOUT
+                    },
+                    poolclass=StaticPool,
+                    pool_pre_ping=True,  # Validate connections before use
+                    echo=os.getenv("DB_ECHO", "false").lower() == "true"
+                )
+                logger.info("Initialized SQLite database with StaticPool")
+            else:
+                # PostgreSQL/MySQL configuration with QueuePool
+                self.engine = create_engine(
+                    self.database_url,
+                    poolclass=QueuePool,
+                    pool_size=DB_POOL_SIZE,
+                    max_overflow=DB_MAX_OVERFLOW,
+                    pool_recycle=DB_POOL_RECYCLE,
+                    pool_timeout=DB_POOL_TIMEOUT,
+                    pool_pre_ping=True,  # Validate connections before use
+                    echo=os.getenv("DB_ECHO", "false").lower() == "true"
+                )
+                logger.info(f"Initialized database with QueuePool: size={DB_POOL_SIZE}, max_overflow={DB_MAX_OVERFLOW}")
+
+            # Create session factory
+            self.SessionLocal = sessionmaker(
+                autocommit=False, 
+                autoflush=False, 
+                bind=self.engine,
+                expire_on_commit=False  # Keep objects accessible after commit
             )
-            self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+            
+            # Create all tables
             Base.metadata.create_all(bind=self.engine)
-            logger.info(f"Database initialized: {self.database_url}")
+            
+            # Test connection
+            with self.get_session() as session:
+                session.execute("SELECT 1")
+            
+            logger.info(f"Database initialized successfully: {self.database_url}")
             return True
 
         except Exception as e:
             logger.error(f"Error initializing database: {str(e)}")
             return False
+
+    @contextmanager
+    def get_session(self):
+        """
+        Context manager for database sessions with automatic cleanup
+        
+        Yields:
+            SQLAlchemy session
+        """
+        session = self.SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Database session error: {e}")
+            raise
+        finally:
+            session.close()
+
+    def get_pool_status(self) -> dict:
+        """
+        Get connection pool status information
+        
+        Returns:
+            Dictionary with pool statistics
+        """
+        if not self.engine:
+            return {"status": "not_initialized"}
+        
+        pool = self.engine.pool
+        return {
+            "pool_size": getattr(pool, 'size', lambda: 'N/A')(),
+            "checked_in": getattr(pool, 'checkedin', lambda: 'N/A')(),
+            "checked_out": getattr(pool, 'checkedout', lambda: 'N/A')(),
+            "overflow": getattr(pool, 'overflow', lambda: 'N/A')(),
+            "invalid": getattr(pool, 'invalid', lambda: 'N/A')(),
+        }
 
     def get_session(self) -> Session:
         """Get database session"""
