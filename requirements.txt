@@ -67,3 +67,6 @@ slowapi==0.1.9
 # Enhanced Configuration
 pydantic==2.5.0
 pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.36

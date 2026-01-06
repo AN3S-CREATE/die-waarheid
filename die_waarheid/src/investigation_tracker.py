@@ -21,7 +21,7 @@ import json
 import hashlib
 
 from sqlalchemy import create_engine, Column, String, DateTime, Integer, Float, Text, Boolean, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
 logger = logging.getLogger(__name__)

@@ -13,7 +13,7 @@ from contextlib import contextmanager
 from functools import wraps
 
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, JSON, Index, func
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, joinedload, selectinload
 from sqlalchemy.pool import StaticPool, QueuePool
 from sqlalchemy.sql import text
