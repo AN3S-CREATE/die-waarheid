@@ -52,3 +52,18 @@ spacy==3.7.2
 
 # Optional Performance Boost
 # numba==0.58.1  # Uncomment for faster librosa processing
+
+# API Server
+fastapi==0.115.0
+uvicorn==0.32.0
+python-multipart==0.0.9  # Required for file uploads
+
+# Async Operations
+aiofiles==23.2.1
+
+# Rate Limiting
+slowapi==0.1.9
+
+# Enhanced Configuration
+pydantic==2.5.0
+pydantic-settings==2.1.0
