@@ -392,6 +392,25 @@ class ForensicsEngine:
             logger.error(f"Error calculating stress level: {str(e)}")
             return 0.0
 
+    def calculate_stress_level(self, pitch_volatility: float, silence_ratio: float, 
+                              intensity_max: float, mfcc_variance: float, 
+                              zero_crossing_rate: float = 0.0) -> float:
+        """
+        Public wrapper for stress level calculation
+        
+        Args:
+            pitch_volatility: Pitch volatility value
+            silence_ratio: Silence ratio value
+            intensity_max: Maximum intensity value
+            mfcc_variance: MFCC variance value
+            zero_crossing_rate: Zero crossing rate (optional, for future use)
+            
+        Returns:
+            Stress level (0-100)
+        """
+        # Note: zero_crossing_rate is accepted for API compatibility but not currently used
+        return self._calculate_stress_level(pitch_volatility, silence_ratio, intensity_max, mfcc_variance)
+
     def batch_analyze(self, file_paths: List[Path], progress_callback: Optional[Callable[[int, int, str], None]] = None) -> List[Dict]:
         """
         Analyze multiple audio files sequentially

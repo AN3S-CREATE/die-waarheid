@@ -21,6 +21,7 @@ class WhatsAppParser:
     """
 
     TIMESTAMP_PATTERNS = [
+        r'^\[(\d{1,2}/\d{1,2}/\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:AM|PM|am|pm))?)\]\s*',
         r'^\[?(\d{1,2}/\d{1,2}/\d{2,4}),?\s+(\d{1,2}:\d{2}(?::\d{2})?(?:\s*(?:AM|PM|am|pm))?)\]?\s*[-–]\s*',
         r'^(\d{1,2}/\d{1,2}/\d{2,4})\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–]\s*',
         r'^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}:\d{2}(?::\d{2})?)\s*[-–]\s*',
@@ -157,22 +158,25 @@ class WhatsAppParser:
         Returns:
             datetime object
         """
+        # Remove brackets if present
+        clean_timestamp = timestamp_str.strip('[]')
+        
         formats = [
+            '%d/%m/%Y, %H:%M:%S',  # DD/MM/YYYY, HH:MM:SS (most common)
+            '%d/%m/%Y, %H:%M',     # DD/MM/YYYY, HH:MM
+            '%d/%m/%Y %H:%M:%S',   # DD/MM/YYYY HH:MM:SS
+            '%d/%m/%Y %H:%M',      # DD/MM/YYYY HH:MM
             '%m/%d/%Y, %I:%M:%S %p',
             '%m/%d/%Y, %I:%M %p',
             '%m/%d/%Y %I:%M:%S %p',
             '%m/%d/%Y %I:%M %p',
-            '%d/%m/%Y, %H:%M:%S',
-            '%d/%m/%Y, %H:%M',
-            '%d/%m/%Y %H:%M:%S',
-            '%d/%m/%Y %H:%M',
             '%Y-%m-%d %H:%M:%S',
             '%Y-%m-%d %H:%M',
         ]
 
         for fmt in formats:
             try:
-                return datetime.strptime(timestamp_str, fmt)
+                return datetime.strptime(clean_timestamp, fmt)
             except ValueError:
                 continue
 
@@ -205,15 +209,16 @@ class WhatsAppParser:
         Returns:
             Message type string
         """
-        if '<Media omitted>' in text or 'Media omitted' in text:
-            if 'image' in text.lower():
-                return 'image'
-            elif 'audio' in text.lower() or 'voice' in text.lower():
-                return 'audio'
-            elif 'video' in text.lower():
-                return 'video'
-            else:
-                return 'media'
+        # Check for specific media types first
+        if '<image omitted>' in text.lower() or 'image omitted' in text.lower():
+            return 'image'
+        elif '<audio omitted>' in text.lower() or 'audio omitted' in text.lower() or '<voice omitted>' in text.lower():
+            return 'audio'
+        elif '<video omitted>' in text.lower() or 'video omitted' in text.lower():
+            return 'video'
+        elif '<Media omitted>' in text or 'Media omitted' in text:
+            # Generic media omitted
+            return 'media'
 
         if text.startswith('http') or 'http' in text:
             return 'link'
@@ -223,13 +228,24 @@ class WhatsAppParser:
     def _extract_metadata(self):
         """Extract metadata from parsed messages"""
         if not self.messages:
-            self.chat_metadata = {}
+            self.chat_metadata = {
+                'total_messages': 0,
+                'unique_senders': 0,
+                'total_participants': 0,
+                'participants': [],
+                'start_date': None,
+                'end_date': None,
+                'duration_days': 0,
+                'system_messages': 0,
+                'user_messages': 0,
+            }
             return
 
         timestamps = [m['timestamp'] for m in self.messages if m.get('timestamp')]
 
         self.chat_metadata = {
             'total_messages': len(self.messages),
+            'unique_senders': len(self.participants),
             'total_participants': len(self.participants),
             'participants': sorted(list(self.participants)),
             'start_date': min(timestamps) if timestamps else None,
@@ -287,6 +303,8 @@ class WhatsAppParser:
         Returns:
             Dictionary with chat metadata
         """
+        if not hasattr(self, 'chat_metadata') or not self.chat_metadata:
+            self._extract_metadata()
         return self.chat_metadata
 
     def to_dataframe(self) -> pd.DataFrame:
@@ -347,14 +365,37 @@ class WhatsAppParser:
             Dictionary with statistics
         """
         if not self.messages:
-            return {}
+            return {
+                'message_count': 0,
+                'total_messages': 0,
+                'total_participants': 0,
+                'messages_per_participant': {},
+                'messages_per_day': {},
+                'messages_per_hour': {},
+                'message_types': {},
+                'average_message_length': 0,
+                'longest_message': 0,
+                'shortest_message': 0,
+            }
 
         df = self.to_dataframe()
 
         if df.empty:
-            return {}
+            return {
+                'message_count': 0,
+                'total_messages': 0,
+                'total_participants': 0,
+                'messages_per_participant': {},
+                'messages_per_day': {},
+                'messages_per_hour': {},
+                'message_types': {},
+                'average_message_length': 0,
+                'longest_message': 0,
+                'shortest_message': 0,
+            }
 
         stats = {
+            'message_count': len(df),
             'total_messages': len(df),
             'total_participants': len(self.participants),
             'messages_per_participant': df['sender'].value_counts().to_dict(),
@@ -368,6 +409,48 @@ class WhatsAppParser:
 
         logger.info(f"Generated statistics for {len(df)} messages")
         return stats
+
+    def get_message_count(self) -> int:
+        """
+        Get total number of messages
+        
+        Returns:
+            Number of messages
+        """
+        return len(self.messages)
+
+    def _parse_message_line(self, line: str) -> Optional[Dict]:
+        """
+        Alias for _parse_line for backward compatibility
+        
+        Args:
+            line: Line from chat export
+            
+        Returns:
+            Dictionary with message data or None
+        """
+        return self._parse_line(line)
+
+    def _extract_sender(self, line: str) -> Optional[str]:
+        """
+        Extract sender name from a message line
+        
+        Args:
+            line: Message line
+            
+        Returns:
+            Sender name or None
+        """
+        for pattern in self.TIMESTAMP_PATTERNS:
+            match = re.match(pattern, line)
+            if match:
+                # Extract the part after timestamp
+                remaining = line[match.end():]
+                # Look for sender pattern: "Name: message"
+                sender_match = re.match(r'^([^:]+):\s*', remaining)
+                if sender_match:
+                    return sender_match.group(1).strip()
+        return None
 
 
 if __name__ == "__main__":

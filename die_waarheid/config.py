@@ -51,6 +51,7 @@ GDRIVE_SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
 # ==============================================================================
 
 SUPPORTED_AUDIO_FORMATS = ['.opus', '.ogg', '.mp3', '.wav', '.m4a', '.aac']
+SUPPORTED_TEXT_FORMATS = ['.txt', '.md', '.csv', '.json']
 TARGET_SAMPLE_RATE = 16000
 
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "medium")

@@ -36,9 +36,9 @@ class TestConfiguration(unittest.TestCase):
         self.assertGreater(len(SUPPORTED_AUDIO_FORMATS), 0)
         self.assertGreater(len(SUPPORTED_TEXT_FORMATS), 0)
         
-        self.assertIn('mp3', SUPPORTED_AUDIO_FORMATS)
-        self.assertIn('wav', SUPPORTED_AUDIO_FORMATS)
-        self.assertIn('txt', SUPPORTED_TEXT_FORMATS)
+        self.assertIn('.mp3', SUPPORTED_AUDIO_FORMATS)
+        self.assertIn('.wav', SUPPORTED_AUDIO_FORMATS)
+        self.assertIn('.txt', SUPPORTED_TEXT_FORMATS)
 
     def test_validate_config(self):
         """Test configuration validation"""
