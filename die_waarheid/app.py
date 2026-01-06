@@ -1086,6 +1086,37 @@ def page_visualizations():
         st.write("- Zoom and pan controls")
 
 
+def page_pipeline_results():
+    """Pipeline results page"""
+    st.header("🔄 Pipeline Results")
+    
+    st.subheader("Processing Pipeline Status")
+    
+    # Display pipeline stages
+    stages = [
+        ("Audio Transcription", "✅ Complete"),
+        ("Forensic Analysis", "✅ Complete"),
+        ("AI Analysis", "✅ Complete"),
+        ("Report Generation", "⏳ In Progress")
+    ]
+    
+    for stage, status in stages:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.write(f"**{stage}**")
+        with col2:
+            st.write(status)
+    
+    st.subheader("Recent Results")
+    
+    # Display recent analysis results
+    if st.button("🔄 Refresh Results"):
+        st.info("Pipeline results refreshed")
+        st.write("Latest analysis:")
+        st.write("- Stress level: 65%")
+        st.write("- Confidence: 87%")
+        st.write("- Processing time: 2.3s")
+
 def page_report_generation():
     """Report generation page"""
     st.header("📄 Report Generation")

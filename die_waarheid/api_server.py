@@ -127,7 +127,7 @@ speaker_system: Optional[SpeakerIdentificationSystem] = None
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    global transcriber, forensics_engine, speaker_system
+    global forensics_engine, speaker_system
     
     logger.info("Initializing services...")
     

@@ -73,7 +73,6 @@ def query_cache(ttl: int = QUERY_CACHE_TTL):
 
 def clear_query_cache():
     """Clear all cached query results"""
-    global _query_cache
     _query_cache.clear()
     logger.info("Query cache cleared")
 
