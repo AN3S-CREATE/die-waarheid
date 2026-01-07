@@ -274,6 +274,56 @@ async def health_check(request: Request):
             "error": str(e)
         }
     
+    # Add model validation information if available
+    try:
+        from src.model_validator import get_all_models_validation_status
+        
+        models_status = get_all_models_validation_status()
+        health_info["models"] = {
+            "validation_enabled": True,
+            "whisper_version": models_status.get("whisper_version", "unknown"),
+            "models_count": len(models_status.get("models", {})),
+            "validation_interval_hours": models_status.get("validation_interval_hours", 24)
+        }
+        
+        # Add basic model status summary
+        models_summary = {"valid": 0, "invalid": 0, "not_validated": 0, "missing": 0}
+        for model_name, model_status in models_status.get("models", {}).items():
+            if not model_status.get("exists", False):
+                models_summary["missing"] += 1
+            elif model_status.get("validation_status") == "valid":
+                models_summary["valid"] += 1
+            elif model_status.get("validation_status") == "invalid":
+                models_summary["invalid"] += 1
+            else:
+                models_summary["not_validated"] += 1
+        
+        health_info["models"]["summary"] = models_summary
+        
+        # Add transcriber model info if available
+        if transcriber is not None:
+            try:
+                transcriber_validation = transcriber.get_model_validation_info()
+                health_info["models"]["current_transcriber_model"] = {
+                    "model_size": transcriber_validation.get("model_size"),
+                    "model_loaded": transcriber_validation.get("model_loaded", False),
+                    "validation_available": transcriber_validation.get("model_validation_available", False)
+                }
+            except Exception as e:
+                logger.debug(f"Error getting transcriber validation info for health check: {e}")
+        
+    except ImportError:
+        health_info["models"] = {
+            "validation_enabled": False,
+            "message": "Model validation module not available"
+        }
+    except Exception as e:
+        logger.warning(f"Error getting model validation information for health check: {e}")
+        health_info["models"] = {
+            "validation_enabled": False,
+            "error": str(e)
+        }
+    
     return health_info
 
 
@@ -373,6 +423,172 @@ async def gpu_status(request: Request, api_key: str = Depends(verify_api_key)):
         raise HTTPException(
             status_code=500,
             detail="Error retrieving GPU status"
+        )
+
+
+@app.get("/api/models/status")
+@limiter.limit("10/minute")
+async def models_status(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get comprehensive model validation status - requires authentication
+    
+    Returns:
+        Model validation status for all models
+    """
+    try:
+        # Import model validation features
+        from src.model_validator import get_all_models_validation_status
+        
+        models_status_info = {
+            "timestamp": datetime.now().isoformat(),
+            "model_validation_available": True,
+            **get_all_models_validation_status()
+        }
+        
+        # Add transcriber model validation info if available
+        if transcriber is not None:
+            try:
+                transcriber_validation_info = transcriber.get_model_validation_info()
+                models_status_info["transcriber_model_validation"] = transcriber_validation_info
+            except Exception as e:
+                logger.warning(f"Error getting transcriber model validation info: {e}")
+                models_status_info["transcriber_model_validation"] = {"error": str(e)}
+        
+        return models_status_info
+        
+    except ImportError:
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "model_validation_available": False,
+            "message": "Model validation module not available"
+        }
+    except Exception as e:
+        logger.error(f"Error getting models status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving models status"
+        )
+
+
+@app.post("/api/models/{model_name}/validate")
+@limiter.limit("5/minute")
+async def validate_model_endpoint(
+    model_name: str,
+    request: Request,
+    api_key: str = Depends(verify_api_key),
+    force: bool = False
+):
+    """
+    Validate a specific model - requires authentication
+    
+    Args:
+        model_name: Name of model to validate (tiny, small, medium, large)
+        force: Force validation even if recently validated
+    
+    Returns:
+        Model validation results
+    """
+    try:
+        # Import model validation features
+        from src.model_validator import validate_model
+        
+        # Validate model name
+        valid_models = ["tiny", "base", "small", "medium", "large"]
+        if model_name not in valid_models:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid model name. Must be one of: {', '.join(valid_models)}"
+            )
+        
+        logger.info(f"Validating model {model_name} (force={force})")
+        
+        # Perform validation
+        validation_result = validate_model(model_name, force=force)
+        
+        validation_response = {
+            "timestamp": datetime.now().isoformat(),
+            "model_name": model_name,
+            "force_validation": force,
+            "validation_result": {
+                "is_valid": validation_result.is_valid,
+                "checksum_valid": validation_result.checksum_valid,
+                "version_compatible": validation_result.version_compatible,
+                "file_exists": validation_result.file_exists,
+                "file_readable": validation_result.file_readable,
+                "size_valid": validation_result.size_valid,
+                "corruption_detected": validation_result.corruption_detected,
+                "security_valid": validation_result.security_valid,
+                "performance_valid": validation_result.performance_valid,
+                "validation_time": validation_result.validation_time.isoformat(),
+                "errors": validation_result.errors,
+                "warnings": validation_result.warnings,
+                "details": validation_result.details
+            }
+        }
+        
+        logger.info(f"Model {model_name} validation completed: {'PASSED' if validation_result.is_valid else 'FAILED'}")
+        
+        return validation_response
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Model validation module not available"
+        )
+    except Exception as e:
+        logger.error(f"Error validating model {model_name}: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error validating model: {str(e)}"
+        )
+
+
+@app.get("/api/models/{model_name}/status")
+@limiter.limit("10/minute")
+async def model_status(
+    model_name: str,
+    request: Request,
+    api_key: str = Depends(verify_api_key)
+):
+    """
+    Get status for a specific model - requires authentication
+    
+    Args:
+        model_name: Name of model to check
+    
+    Returns:
+        Model status information
+    """
+    try:
+        # Import model validation features
+        from src.model_validator import get_model_validation_status
+        
+        # Validate model name
+        valid_models = ["tiny", "base", "small", "medium", "large"]
+        if model_name not in valid_models:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid model name. Must be one of: {', '.join(valid_models)}"
+            )
+        
+        model_status_info = {
+            "timestamp": datetime.now().isoformat(),
+            "model_name": model_name,
+            **get_model_validation_status(model_name)
+        }
+        
+        return model_status_info
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Model validation module not available"
+        )
+    except Exception as e:
+        logger.error(f"Error getting model {model_name} status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting model status: {str(e)}"
         )
 
 
