@@ -4,9 +4,17 @@ Analyzes voice notes for bio-signal detection and stress indicators
 """
 
 import logging
+import gc
+import os
+import psutil
+import threading
+import time
+import weakref
+from contextlib import contextmanager
+from typing import Dict, Tuple, Optional, List, Callable, Any
+
 import numpy as np
 from pathlib import Path
-from typing import Dict, Tuple, Optional, List, Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import librosa
@@ -23,12 +31,110 @@ from src.cache import AnalysisCache
 
 logger = logging.getLogger(__name__)
 
+# Memory monitoring settings
+MEMORY_THRESHOLD_MB = int(os.getenv("MEMORY_THRESHOLD_MB", "1000"))  # 1GB default
+ENABLE_MEMORY_MONITORING = os.getenv("ENABLE_MEMORY_MONITORING", "true").lower() == "true"
+GC_COLLECTION_INTERVAL = int(os.getenv("GC_COLLECTION_INTERVAL", "10"))  # Every 10 operations
+
+# Global memory tracking
+_memory_stats = {
+    'peak_usage_mb': 0,
+    'current_usage_mb': 0,
+    'operations_count': 0,
+    'gc_collections': 0,
+    'memory_warnings': 0
+}
+_memory_lock = threading.Lock()
+
+def get_memory_usage() -> float:
+    """Get current memory usage in MB"""
+    try:
+        process = psutil.Process()
+        return process.memory_info().rss / 1024 / 1024  # Convert to MB
+    except Exception:
+        return 0.0
+
+def update_memory_stats():
+    """Update global memory statistics"""
+    global _memory_stats
+    current_mb = get_memory_usage()
+    
+    with _memory_lock:
+        _memory_stats['current_usage_mb'] = current_mb
+        _memory_stats['peak_usage_mb'] = max(_memory_stats['peak_usage_mb'], current_mb)
+        _memory_stats['operations_count'] += 1
+        
+        # Trigger garbage collection if needed
+        if (_memory_stats['operations_count'] % GC_COLLECTION_INTERVAL == 0 or 
+            current_mb > MEMORY_THRESHOLD_MB):
+            gc.collect()
+            _memory_stats['gc_collections'] += 1
+            
+            # Log warning if memory usage is high
+            if current_mb > MEMORY_THRESHOLD_MB:
+                _memory_stats['memory_warnings'] += 1
+                logger.warning(f"High memory usage detected: {current_mb:.1f}MB")
+
+def get_memory_stats() -> Dict[str, Any]:
+    """Get memory usage statistics"""
+    with _memory_lock:
+        return {
+            **_memory_stats,
+            'current_usage_mb': get_memory_usage(),
+            'memory_threshold_mb': MEMORY_THRESHOLD_MB,
+            'monitoring_enabled': ENABLE_MEMORY_MONITORING
+        }
+
+@contextmanager
+def memory_managed_operation(operation_name: str = "audio_operation"):
+    """Context manager for memory-managed operations"""
+    start_memory = get_memory_usage()
+    start_time = time.time()
+    
+    try:
+        if ENABLE_MEMORY_MONITORING:
+            logger.debug(f"Starting {operation_name} - Memory: {start_memory:.1f}MB")
+        
+        yield
+        
+    finally:
+        end_memory = get_memory_usage()
+        duration = time.time() - start_time
+        memory_delta = end_memory - start_memory
+        
+        if ENABLE_MEMORY_MONITORING:
+            logger.debug(f"Completed {operation_name} - Duration: {duration:.2f}s, "
+                        f"Memory: {end_memory:.1f}MB (Δ{memory_delta:+.1f}MB)")
+        
+        update_memory_stats()
+        
+        # Force garbage collection if memory increased significantly
+        if memory_delta > 100:  # 100MB threshold
+            gc.collect()
+
+def optimize_array_memory(arr: np.ndarray) -> np.ndarray:
+    """Optimize numpy array memory usage"""
+    if arr is None or arr.size == 0:
+        return arr
+    
+    # Convert to most efficient dtype
+    if arr.dtype == np.float64:
+        # Check if we can safely convert to float32
+        if np.allclose(arr, arr.astype(np.float32), rtol=1e-6):
+            return arr.astype(np.float32)
+    
+    # Ensure array is contiguous for better memory access
+    if not arr.flags.c_contiguous:
+        return np.ascontiguousarray(arr)
+    
+    return arr
+
 
 class ForensicsEngine:
     """
-    Audio forensics analysis engine
+    Memory-optimized audio forensics analysis engine
     Detects bio-signals: pitch volatility, silence ratio, intensity, MFCC variance,
-    zero crossing rate, and spectral centroid
+    zero crossing rate, and spectral centroid with advanced memory management
     """
 
     def __init__(self, sample_rate: int = TARGET_SAMPLE_RATE, use_cache: bool = True):
@@ -36,10 +142,19 @@ class ForensicsEngine:
         self.audio_data = None
         self.filename = None
         self.cache = AnalysisCache() if use_cache else None
+        
+        # Memory management
+        self._audio_buffer_refs = weakref.WeakSet()  # Track audio buffers
+        self._analysis_cache = {}  # Local analysis cache
+        self._max_cache_size = 10  # Limit cache size
+        
+        # Performance tracking
+        self._operation_count = 0
+        self._last_cleanup = time.time()
 
     def load_audio(self, file_path: Path) -> Tuple[bool, str]:
         """
-        Load audio file with automatic format detection and resampling
+        Load audio file with memory-optimized processing and automatic cleanup
 
         Args:
             file_path: Path to audio file
@@ -47,30 +162,77 @@ class ForensicsEngine:
         Returns:
             Tuple of (success: bool, message: str)
         """
-        try:
-            file_path = Path(file_path)
-            
-            if not file_path.exists():
-                logger.error(f"Audio file not found: {file_path}")
-                return False, f"File not found: {file_path}"
+        with memory_managed_operation(f"load_audio_{Path(file_path).name}"):
+            try:
+                file_path = Path(file_path)
+                
+                if not file_path.exists():
+                    logger.error(f"Audio file not found: {file_path}")
+                    return False, f"File not found: {file_path}"
 
-            self.audio_data, sr = librosa.load(
-                str(file_path),
-                sr=self.sample_rate,
-                mono=True
-            )
-            self.filename = file_path.name
+                # Clear previous audio data to free memory
+                self._cleanup_audio_data()
+                
+                # Load audio with memory optimization
+                self.audio_data, sr = librosa.load(
+                    str(file_path),
+                    sr=self.sample_rate,
+                    mono=True,
+                    dtype=np.float32  # Use float32 instead of float64 to save memory
+                )
+                
+                # Optimize array memory layout
+                self.audio_data = optimize_array_memory(self.audio_data)
+                
+                # Track audio buffer for cleanup
+                self._audio_buffer_refs.add(self.audio_data)
+                
+                self.filename = file_path.name
+                duration = len(self.audio_data) / self.sample_rate
+                memory_mb = self.audio_data.nbytes / 1024 / 1024
 
-            logger.info(f"Loaded audio file: {self.filename} (duration: {len(self.audio_data) / self.sample_rate:.2f}s)")
-            return True, f"Successfully loaded {self.filename}"
+                logger.info(f"Loaded audio file: {self.filename} "
+                           f"(duration: {duration:.2f}s, memory: {memory_mb:.1f}MB)")
+                return True, f"Successfully loaded {self.filename}"
 
-        except Exception as e:
-            logger.error(f"Error loading audio file: {str(e)}")
-            return False, f"Error loading audio: {str(e)}"
+            except Exception as e:
+                logger.error(f"Error loading audio file: {str(e)}")
+                self._cleanup_audio_data()  # Cleanup on error
+                return False, f"Error loading audio: {str(e)}"
+
+    def _cleanup_audio_data(self):
+        """Clean up previous audio data to free memory"""
+        if self.audio_data is not None:
+            # Clear reference and force garbage collection
+            self.audio_data = None
+            gc.collect()
+            logger.debug("Cleaned up previous audio data")
+
+    def _cleanup_cache(self):
+        """Clean up analysis cache if it gets too large"""
+        if len(self._analysis_cache) > self._max_cache_size:
+            # Remove oldest entries (simple FIFO)
+            keys_to_remove = list(self._analysis_cache.keys())[:-self._max_cache_size//2]
+            for key in keys_to_remove:
+                del self._analysis_cache[key]
+            gc.collect()
+            logger.debug(f"Cleaned up analysis cache, removed {len(keys_to_remove)} entries")
+
+    def _should_cleanup(self) -> bool:
+        """Check if cleanup should be performed"""
+        self._operation_count += 1
+        current_time = time.time()
+        
+        # Cleanup every 10 operations or every 5 minutes
+        if (self._operation_count % 10 == 0 or 
+            current_time - self._last_cleanup > 300):
+            self._last_cleanup = current_time
+            return True
+        return False
 
     def extract_pitch(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Extract pitch contour using PYIN algorithm
+        Extract pitch contour using PYIN algorithm with memory optimization
 
         Returns:
             Tuple of (f0: pitch values, times: time frames)
@@ -79,22 +241,41 @@ class ForensicsEngine:
             logger.warning("No audio data loaded")
             return np.array([]), np.array([])
 
-        try:
-            f0, voiced_flag, voiced_probs = librosa.pyin(
-                self.audio_data,
-                fmin=librosa.note_to_hz('C2'),
-                fmax=librosa.note_to_hz('C7'),
-                sr=self.sample_rate
-            )
+        with memory_managed_operation("extract_pitch"):
+            try:
+                # Check cache first
+                cache_key = f"pitch_{hash(self.audio_data.tobytes())}"
+                if cache_key in self._analysis_cache:
+                    logger.debug("Using cached pitch extraction")
+                    return self._analysis_cache[cache_key]
 
-            times = librosa.frames_to_time(np.arange(len(f0)), sr=self.sample_rate)
-            
-            logger.debug(f"Extracted pitch contour with {len(f0)} frames")
-            return f0, times
+                f0, voiced_flag, voiced_probs = librosa.pyin(
+                    self.audio_data,
+                    fmin=librosa.note_to_hz('C2'),
+                    fmax=librosa.note_to_hz('C7'),
+                    sr=self.sample_rate
+                )
 
-        except Exception as e:
-            logger.error(f"Error extracting pitch: {str(e)}")
-            return np.array([]), np.array([])
+                times = librosa.frames_to_time(np.arange(len(f0)), sr=self.sample_rate)
+                
+                # Optimize memory usage
+                f0 = optimize_array_memory(f0)
+                times = optimize_array_memory(times)
+                
+                # Cache result
+                result = (f0, times)
+                self._analysis_cache[cache_key] = result
+                
+                # Cleanup if needed
+                if self._should_cleanup():
+                    self._cleanup_cache()
+                
+                logger.debug(f"Extracted pitch contour with {len(f0)} frames")
+                return result
+
+            except Exception as e:
+                logger.error(f"Error extracting pitch: {str(e)}")
+                return np.array([]), np.array([])
 
     def calculate_pitch_volatility(self, f0: np.ndarray) -> float:
         """
@@ -130,7 +311,7 @@ class ForensicsEngine:
 
     def calculate_silence_ratio(self) -> float:
         """
-        Calculate ratio of silence to total duration
+        Calculate ratio of silence to total duration with memory optimization
         High silence ratio indicates cognitive load or hesitation
 
         Args:
@@ -142,21 +323,38 @@ class ForensicsEngine:
         if self.audio_data is None:
             return 0.0
 
-        try:
-            S = librosa.feature.melspectrogram(
-                y=self.audio_data,
-                sr=self.sample_rate
-            )
-            S_db = librosa.power_to_db(S, ref=np.max)
-            
-            threshold = np.percentile(S_db, 10)
-            silent_frames = np.sum(np.mean(S_db, axis=0) < threshold)
-            total_frames = S_db.shape[1]
-            
-            silence_ratio = silent_frames / total_frames if total_frames > 0 else 0.0
-            
-            logger.debug(f"Silence ratio: {silence_ratio:.2f}")
-            return float(silence_ratio)
+        with memory_managed_operation("calculate_silence_ratio"):
+            try:
+                # Check cache first
+                cache_key = f"silence_{hash(self.audio_data.tobytes())}"
+                if cache_key in self._analysis_cache:
+                    logger.debug("Using cached silence ratio")
+                    return self._analysis_cache[cache_key]
+
+                S = librosa.feature.melspectrogram(
+                    y=self.audio_data,
+                    sr=self.sample_rate
+                )
+                S_db = librosa.power_to_db(S, ref=np.max)
+                
+                # Optimize memory usage
+                S_db = optimize_array_memory(S_db)
+                
+                threshold = np.percentile(S_db, 10)
+                silent_frames = np.sum(np.mean(S_db, axis=0) < threshold)
+                total_frames = S_db.shape[1]
+                
+                silence_ratio = silent_frames / total_frames if total_frames > 0 else 0.0
+                
+                # Cache result
+                self._analysis_cache[cache_key] = float(silence_ratio)
+                
+                # Cleanup if needed
+                if self._should_cleanup():
+                    self._cleanup_cache()
+                
+                logger.debug(f"Silence ratio: {silence_ratio:.2f}")
+                return float(silence_ratio)
 
         except Exception as e:
             logger.error(f"Error calculating silence ratio: {str(e)}")
@@ -489,6 +687,40 @@ class ForensicsEngine:
             return 0.0, 0.0
         
         return float(np.mean(voiced_f0)), float(np.std(voiced_f0))
+
+    def get_memory_statistics(self) -> Dict[str, Any]:
+        """
+        Get comprehensive memory usage statistics for this engine instance
+        
+        Returns:
+            Dictionary with memory statistics
+        """
+        current_memory = get_memory_usage()
+        global_stats = get_memory_stats()
+        
+        return {
+            'engine_stats': {
+                'operation_count': self._operation_count,
+                'cache_size': len(self._analysis_cache),
+                'max_cache_size': self._max_cache_size,
+                'audio_buffer_refs': len(self._audio_buffer_refs),
+                'last_cleanup': self._last_cleanup,
+                'audio_loaded': self.audio_data is not None,
+                'audio_memory_mb': (self.audio_data.nbytes / 1024 / 1024) if self.audio_data is not None else 0
+            },
+            'global_stats': global_stats,
+            'current_memory_mb': current_memory
+        }
+
+    def cleanup_all(self):
+        """
+        Perform comprehensive cleanup of all cached data and audio buffers
+        """
+        self._cleanup_audio_data()
+        self._analysis_cache.clear()
+        self._audio_buffer_refs.clear()
+        gc.collect()
+        logger.info("Performed comprehensive cleanup of ForensicsEngine")
 
     def _extract_silence_ratio(self) -> float:
         """Extract silence ratio"""
