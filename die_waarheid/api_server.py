@@ -225,8 +225,8 @@ async def root():
 @app.get("/api/health")
 @limiter.limit("30/minute")
 async def health_check(request: Request):
-    """Health check endpoint - no authentication required"""
-    return {
+    """Enhanced health check endpoint with GPU information - no authentication required"""
+    health_info = {
         "status": "healthy",
         "transcriber": transcriber is not None,
         "forensics": forensics_engine is not None,
@@ -234,6 +234,47 @@ async def health_check(request: Request):
         "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic",
         "timestamp": datetime.now().isoformat()
     }
+    
+    # Add GPU information if available
+    try:
+        from src.gpu_manager import is_gpu_available, get_optimal_device, gpu_manager
+        
+        health_info["gpu"] = {
+            "available": is_gpu_available(),
+            "optimal_device": get_optimal_device(),
+            "optimization_enabled": True
+        }
+        
+        # Add basic GPU stats if available
+        if is_gpu_available():
+            gpu_stats = gpu_manager.get_performance_stats()
+            health_info["gpu"]["device_count"] = gpu_stats.get("device_count", 0)
+            health_info["gpu"]["cuda_version"] = gpu_stats.get("cuda_version", "Unknown")
+            
+            # Add memory info for optimal device
+            memory_info = gpu_manager.get_memory_info()
+            if memory_info.get("available", False):
+                health_info["gpu"]["memory"] = {
+                    "total_mb": memory_info.get("total_mb", 0),
+                    "free_mb": memory_info.get("free_mb", 0),
+                    "utilization_percent": memory_info.get("utilization_percent", 0)
+                }
+        
+    except ImportError:
+        health_info["gpu"] = {
+            "available": False,
+            "optimization_enabled": False,
+            "message": "GPU optimization module not available"
+        }
+    except Exception as e:
+        logger.warning(f"Error getting GPU information for health check: {e}")
+        health_info["gpu"] = {
+            "available": False,
+            "optimization_enabled": False,
+            "error": str(e)
+        }
+    
+    return health_info
 
 
 @app.get("/api/security/status")
@@ -263,6 +304,75 @@ async def security_status(request: Request, api_key: str = Depends(verify_api_ke
         raise HTTPException(
             status_code=500,
             detail="Error retrieving security status"
+        )
+
+
+@app.get("/api/gpu/status")
+@limiter.limit("10/minute")
+async def gpu_status(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get comprehensive GPU status and performance information - requires authentication
+    
+    Returns:
+        GPU configuration, performance statistics, and optimization settings
+    """
+    try:
+        from src.gpu_manager import is_gpu_available, gpu_manager
+        
+        if not is_gpu_available():
+            return {
+                "gpu_available": False,
+                "message": "GPU not available or optimization disabled",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Get comprehensive GPU statistics
+        gpu_stats = gpu_manager.get_performance_stats()
+        
+        # Get memory information for all devices
+        memory_info = gpu_manager.get_memory_info()
+        
+        # Get optimization settings for different model sizes
+        optimization_settings = {}
+        for model_size in ["tiny", "small", "medium", "large"]:
+            optimization_settings[model_size] = gpu_manager.optimize_model_loading(model_size)
+        
+        gpu_status_info = {
+            "gpu_available": True,
+            "timestamp": datetime.now().isoformat(),
+            "performance_stats": gpu_stats,
+            "memory_info": memory_info,
+            "optimization_settings": optimization_settings,
+            "environment_config": {
+                "ENABLE_GPU": os.getenv("ENABLE_GPU", "true"),
+                "FORCE_CPU": os.getenv("FORCE_CPU", "false"),
+                "GPU_MEMORY_FRACTION": os.getenv("GPU_MEMORY_FRACTION", "0.8"),
+                "GPU_MEMORY_GROWTH": os.getenv("GPU_MEMORY_GROWTH", "true")
+            }
+        }
+        
+        # Add transcriber GPU info if available
+        if transcriber is not None:
+            try:
+                transcriber_gpu_info = transcriber.get_gpu_performance_info()
+                gpu_status_info["transcriber_gpu_info"] = transcriber_gpu_info
+            except Exception as e:
+                logger.warning(f"Error getting transcriber GPU info: {e}")
+                gpu_status_info["transcriber_gpu_info"] = {"error": str(e)}
+        
+        return gpu_status_info
+        
+    except ImportError:
+        return {
+            "gpu_available": False,
+            "message": "GPU optimization module not available",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting GPU status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving GPU status"
         )
 
 

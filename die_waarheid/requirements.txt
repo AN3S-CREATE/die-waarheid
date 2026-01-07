@@ -40,6 +40,12 @@ scipy>=1.11.0
 # OpenAI Whisper for audio transcription (REQUIRED)
 openai-whisper>=20231117
 
+# PyTorch for GPU acceleration (optional but recommended)
+torch>=2.0.0
+
+# NVIDIA GPU support (optional)
+# nvidia-ml-py>=12.535.0
+
 # Google Generative AI for expert panel & AI analysis
 # Note: google-generativeai is deprecated, but keeping for compatibility
 # TODO: Migrate to google-genai when available
