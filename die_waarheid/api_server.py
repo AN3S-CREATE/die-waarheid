@@ -376,6 +376,36 @@ async def gpu_status(request: Request, api_key: str = Depends(verify_api_key)):
         )
 
 
+@app.get("/api/security/status")
+@limiter.limit("10/minute")
+async def security_status(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get security system status and statistics - requires authentication
+    
+    Returns:
+        Security configuration and statistics
+    """
+    if not ADVANCED_SECURITY_AVAILABLE:
+        return {
+            "security_enabled": False,
+            "message": "Advanced security module not available"
+        }
+    
+    try:
+        security_report = security_validator.get_security_report()
+        return {
+            "security_enabled": True,
+            "timestamp": datetime.now().isoformat(),
+            **security_report
+        }
+    except Exception as e:
+        logger.error(f"Error getting security status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving security status"
+        )
+
+
 @app.post("/api/transcribe")
 @limiter.limit("10/minute")
 async def transcribe_audio(
