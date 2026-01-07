@@ -16,9 +16,6 @@ uvicorn>=0.24.0
 slowapi>=0.1.9
 bleach>=6.1.0
 
-# System Monitoring & Health
-psutil>=5.9.0
-
 # Data Processing
 pandas>=2.0.0
 numpy>=1.24.0
@@ -49,7 +46,7 @@ torch>=2.0.0
 # NVIDIA GPU support (optional)
 # nvidia-ml-py>=12.535.0
 
-# Google Generative AI for expert panel & AI analysis (OPTIONAL - Hugging Face is primary)
+# Google Generative AI for expert panel & AI analysis
 # Note: google-generativeai is deprecated, but keeping for compatibility
 # google-generativeai>=0.3.0
 
