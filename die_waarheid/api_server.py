@@ -19,6 +19,20 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+# Import advanced security features
+try:
+    from src.security import (
+        add_security_headers,
+        validate_request_security,
+        sanitize_user_input,
+        validate_file_security,
+        security_validator
+    )
+    ADVANCED_SECURITY_AVAILABLE = True
+except ImportError:
+    logger.warning("Advanced security module not available, using basic security")
+    ADVANCED_SECURITY_AVAILABLE = False
+
 from src.whisper_transcriber import WhisperTranscriber
 from src.forensics import ForensicsEngine
 from src.speaker_identification import SpeakerIdentificationSystem
@@ -86,16 +100,38 @@ async def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(se
         )
     return credentials.credentials
 
-# File validation
-async def validate_file_size(file: UploadFile) -> None:
-    """Validate uploaded file size"""
+# Enhanced file validation with security
+async def validate_file_security_and_size(file: UploadFile) -> None:
+    """
+    Comprehensive file validation including size and security checks
+    
+    Args:
+        file: Uploaded file to validate
+        
+    Raises:
+        HTTPException: If file validation fails
+    """
     content = await file.read()
+    
+    # Size validation
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
             detail=f"File too large. Maximum size: {MAX_FILE_SIZE/(1024*1024):.0f}MB"
         )
+    
+    # Advanced security validation if available
+    if ADVANCED_SECURITY_AVAILABLE:
+        allowed_audio_types = ['.wav', '.mp3', '.mp4', '.m4a', '.flac', '.ogg']
+        validate_file_security(content, file.filename or "unknown", allowed_audio_types)
+    
     await file.seek(0)  # Reset file pointer
+
+
+# Legacy function for backward compatibility
+async def validate_file_size(file: UploadFile) -> None:
+    """Legacy file size validation (deprecated - use validate_file_security_and_size)"""
+    await validate_file_security_and_size(file)
 
 # Configure CORS with security
 ALLOWED_ORIGINS = os.getenv(
@@ -148,13 +184,41 @@ async def startup_event():
     logger.info("Services initialized successfully")
 
 
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    """Security middleware for request validation and response headers"""
+    try:
+        # Validate request security if advanced security is available
+        if ADVANCED_SECURITY_AVAILABLE:
+            validate_request_security(request)
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Add security headers if advanced security is available
+        if ADVANCED_SECURITY_AVAILABLE:
+            response = add_security_headers(response)
+        
+        return response
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (rate limiting, blocked IPs, etc.)
+        raise
+    except Exception as e:
+        logger.error(f"Security middleware error: {str(e)}")
+        # Continue processing on middleware errors
+        response = await call_next(request)
+        return response
+
+
 @app.get("/")
 async def root():
-    """Root endpoint"""
+    """Root endpoint with security headers"""
     return {
         "name": "Die Waarheid API",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic"
     }
 
 
@@ -167,8 +231,39 @@ async def health_check(request: Request):
         "transcriber": transcriber is not None,
         "forensics": forensics_engine is not None,
         "speaker_system": speaker_system is not None,
+        "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic",
         "timestamp": datetime.now().isoformat()
     }
+
+
+@app.get("/api/security/status")
+@limiter.limit("10/minute")
+async def security_status(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get security system status and statistics - requires authentication
+    
+    Returns:
+        Security configuration and statistics
+    """
+    if not ADVANCED_SECURITY_AVAILABLE:
+        return {
+            "security_enabled": False,
+            "message": "Advanced security module not available"
+        }
+    
+    try:
+        security_report = security_validator.get_security_report()
+        return {
+            "security_enabled": True,
+            "timestamp": datetime.now().isoformat(),
+            **security_report
+        }
+    except Exception as e:
+        logger.error(f"Error getting security status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving security status"
+        )
 
 
 @app.post("/api/transcribe")
@@ -185,10 +280,15 @@ async def transcribe_audio(
     
     tmp_path = None
     try:
-        # Validate file size
-        await validate_file_size(file)
+        # Enhanced file validation with security checks
+        await validate_file_security_and_size(file)
         
-        # Validate input parameters
+        # Sanitize and validate input parameters
+        if ADVANCED_SECURITY_AVAILABLE:
+            language = sanitize_user_input(language, max_length=10)
+            model_size = sanitize_user_input(model_size, max_length=20)
+        
+        # Validate parameters
         if language not in ['af', 'en', 'nl']:
             raise HTTPException(status_code=400, detail="Invalid language. Must be af, en, or nl")
         
