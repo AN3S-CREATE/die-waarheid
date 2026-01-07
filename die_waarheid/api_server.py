@@ -181,6 +181,14 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize forensics engine: {e}")
     
+    # Initialize health monitoring
+    try:
+        from src.health_monitor import start_health_monitoring
+        start_health_monitoring()
+        logger.info("Health monitoring started")
+    except Exception as e:
+        logger.warning(f"Failed to start health monitoring: {e}")
+    
     logger.info("Services initialized successfully")
 
 

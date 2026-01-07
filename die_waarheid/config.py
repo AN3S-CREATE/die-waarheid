@@ -30,13 +30,22 @@ for directory in [DATA_DIR, AUDIO_DIR, TEXT_DIR, TEMP_DIR, OUTPUT_DIR,
     directory.mkdir(parents=True, exist_ok=True)
 
 # ==============================================================================
-# API CREDENTIALS
+# API CREDENTIALS & AI CONFIGURATION
 # ==============================================================================
 
+# AI Analysis Configuration
+USE_FREE_AI = os.getenv("USE_FREE_AI", "true").lower() == "true"  # Default to free AI
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "") or os.getenv("GOOGLE_API_KEY", "")
 HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "") or os.getenv("HUGGINGFACE_API_KEY", "")
+
+# Google Drive Integration
 GOOGLE_CREDENTIALS_PATH = CREDENTIALS_DIR / "google_credentials.json"
 TOKEN_PICKLE_PATH = CREDENTIALS_DIR / "token.pickle"
+
+# Free AI Settings
+FREE_AI_DEVICE = os.getenv("FREE_AI_DEVICE", "auto")  # auto, cpu, cuda
+FREE_AI_CACHE_DIR = TEMP_DIR / "ai_models"
+FREE_AI_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 # ==============================================================================
 # GOOGLE DRIVE SETTINGS
