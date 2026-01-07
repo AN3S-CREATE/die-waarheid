@@ -4,10 +4,13 @@ Handles audio transcription with Afrikaans language support
 """
 
 import logging
+import os
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import whisper
+import torch
 
 from config import (
     WHISPER_MODEL_SIZE,
@@ -34,15 +37,19 @@ logger = logging.getLogger(__name__)
 
 class WhisperTranscriber:
     """
-    Whisper-based transcription engine
+    Whisper-based transcription engine with model caching
     Supports multiple languages with Afrikaans optimization
     """
 
     AVAILABLE_MODELS = ["tiny", "base", "small", "medium", "large"]
+    
+    # Class-level model cache to prevent reloading
+    _model_cache = {}
+    _cache_lock = threading.Lock()
 
     def __init__(self, model_size: str = WHISPER_MODEL_SIZE):
         """
-        Initialize Whisper transcriber
+        Initialize Whisper transcriber with model caching
 
         Args:
             model_size: Model size (tiny, base, small, medium, large)
@@ -53,15 +60,35 @@ class WhisperTranscriber:
 
         self.model_size = model_size
         self.model = None
+        self.device = self._get_optimal_device()
         self.load_model()
 
-    def load_model(self) -> bool:
+    @staticmethod
+    def _get_optimal_device() -> str:
+        """
+        Determine optimal device for model inference
+        
+        Returns:
+            Device string ('cuda', 'mps', or 'cpu')
         """
         Load Whisper model with GPU optimization
 
+    def load_model(self) -> bool:
+        """
+        Load Whisper model with caching to prevent reloading
+        
         Returns:
             True if model loaded successfully, False otherwise
         """
+        cache_key = f"{self.model_size}_{self.device}"
+        
+        # Check if model is already cached
+        with self._cache_lock:
+            if cache_key in self._model_cache:
+                self.model = self._model_cache[cache_key]
+                logger.info(f"Using cached Whisper {self.model_size} model on {self.device}")
+                return True
+        
         try:
             logger.info(f"Loading Whisper {self.model_size} model...")
             
@@ -104,6 +131,22 @@ class WhisperTranscriber:
                 cleanup_gpu_memory()
             
             return False
+
+    @classmethod
+    def clear_model_cache(cls):
+        """Clear all cached models to free memory"""
+        with cls._cache_lock:
+            cls._model_cache.clear()
+            logger.info("Cleared Whisper model cache")
+
+    @classmethod
+    def get_cache_info(cls) -> Dict:
+        """Get information about cached models"""
+        with cls._cache_lock:
+            return {
+                "cached_models": list(cls._model_cache.keys()),
+                "cache_size": len(cls._model_cache)
+            }
 
     def transcribe(
         self,

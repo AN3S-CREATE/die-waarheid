@@ -274,7 +274,7 @@ class ContradictionTimelineAnalyzer:
             'total_contradictions': len(self.contradictions),
             'by_type': by_type,
             'critical_contradictions': critical,
-            'average_confidence': sum(c.confidence for c in self.contradictions) / len(self.contradictions)
+            'average_confidence': sum(c.confidence for c in self.contradictions) / len(self.contradictions) if self.contradictions else 0.0
         }
 
     def generate_html_timeline(self, participant_id: str, output_path: str) -> bool:

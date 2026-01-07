@@ -253,6 +253,44 @@ class DatabaseManager:
             logger.error(f"Error initializing database: {str(e)}")
             return False
 
+    @contextmanager
+    def get_session(self):
+        """
+        Context manager for database sessions with automatic cleanup
+        
+        Yields:
+            SQLAlchemy session
+        """
+        session = self.SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Database session error: {e}")
+            raise
+        finally:
+            session.close()
+
+    def get_pool_status(self) -> dict:
+        """
+        Get connection pool status information
+        
+        Returns:
+            Dictionary with pool statistics
+        """
+        if not self.engine:
+            return {"status": "not_initialized"}
+        
+        pool = self.engine.pool
+        return {
+            "pool_size": getattr(pool, 'size', lambda: 'N/A')(),
+            "checked_in": getattr(pool, 'checkedin', lambda: 'N/A')(),
+            "checked_out": getattr(pool, 'checkedout', lambda: 'N/A')(),
+            "overflow": getattr(pool, 'overflow', lambda: 'N/A')(),
+            "invalid": getattr(pool, 'invalid', lambda: 'N/A')(),
+        }
+
     def get_session(self) -> Session:
         """Get database session"""
         return self.SessionLocal()
