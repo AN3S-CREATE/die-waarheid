@@ -1,6 +1,7 @@
 """
 AI Analyzer for Die Waarheid
-Gemini-powered psychological profiling and pattern detection
+Free AI-powered psychological profiling and pattern detection using Hugging Face Transformers
+Fallback to Gemini API if configured
 """
 
 import logging
@@ -11,6 +12,15 @@ from typing import Dict, List, Optional, Tuple, Callable
 from datetime import datetime
 from functools import wraps, lru_cache
 
+# Import free AI analyzer (primary)
+try:
+    from src.free_ai_analyzer import get_free_ai_analyzer
+    FREE_AI_AVAILABLE = True
+except ImportError:
+    FREE_AI_AVAILABLE = False
+    get_free_ai_analyzer = None
+
+# Import Gemini (fallback)
 try:
     import google.generativeai as genai
     GENAI_AVAILABLE = True
@@ -21,6 +31,7 @@ except ImportError:
     genai = None
 
 from config import (
+    USE_FREE_AI,
     GEMINI_API_KEY,
     GEMINI_MODEL,
     GEMINI_TEMPERATURE,
@@ -74,7 +85,7 @@ def retry_with_backoff(max_attempts: int = 3, base_delay: float = 2.0):
 
 class AIAnalyzer:
     """
-    AI-powered analysis using Google Gemini
+    AI-powered analysis using Free AI (Hugging Face Transformers) with Gemini fallback
     Performs psychological profiling, contradiction detection, and pattern matching
     """
 
@@ -84,9 +95,35 @@ class AIAnalyzer:
         self.cache_size = cache_size
         self.cache_hits = 0
         self.cache_misses = 0
-        self.configure_gemini()
+        self.free_ai = None
+        self.use_free_ai = USE_FREE_AI
+        
+        # Initialize AI systems
+        self._initialize_ai_systems()
+        
         # Initialize LRU cache for AI responses
         self._init_cache()
+    
+    def _initialize_ai_systems(self):
+        """Initialize AI systems in order of preference"""
+        # Try to initialize free AI first
+        if self.use_free_ai and FREE_AI_AVAILABLE:
+            try:
+                self.free_ai = get_free_ai_analyzer()
+                if self.free_ai.configured:
+                    self.configured = True
+                    logger.info("✅ Free AI Analyzer initialized successfully")
+                    return
+                else:
+                    logger.warning("Free AI Analyzer failed to initialize, trying Gemini...")
+            except Exception as e:
+                logger.warning(f"Free AI Analyzer initialization failed: {e}, trying Gemini...")
+        
+        # Fallback to Gemini
+        if self.configure_gemini():
+            logger.info("✅ Gemini AI initialized as fallback")
+        else:
+            logger.error("❌ No AI systems available - both Free AI and Gemini failed")
 
     def sanitize_input(self, text: str, max_length: int = 10000) -> str:
         """
@@ -157,16 +194,60 @@ class AIAnalyzer:
     def _analyze_uncached(self, text_hash: str, text: str) -> Dict:
         """Internal method for actual AI analysis (not cached)"""
         if not self.configured:
-            logger.warning("Gemini not configured")
+            logger.warning("No AI systems configured")
             return {
                 'success': False,
-                'error': 'Gemini not configured',
+                'error': 'No AI systems configured',
                 'text': text,
                 'cached': False
             }
 
-        try:
-            prompt = f"""Analyze this message for psychological indicators:
+        # Use Free AI if available and configured
+        if self.free_ai and self.free_ai.configured:
+            try:
+                result = self.free_ai.analyze_message(text)
+                if result['success']:
+                    # Convert free AI format to expected format
+                    analysis = result.get('analysis', {})
+                    
+                    # Extract emotion
+                    emotion = 'neutral'
+                    if 'emotion' in analysis:
+                        emotion = analysis['emotion'].get('primary_emotion', 'neutral')
+                    elif 'sentiment' in analysis:
+                        sentiment = analysis['sentiment'].get('polarity', 'neutral')
+                        emotion = sentiment
+                    
+                    # Extract toxicity score
+                    toxicity_score = 0.0
+                    if 'toxicity' in analysis:
+                        toxicity_score = analysis['toxicity'].get('toxicity_score', 0.0)
+                    
+                    # Extract aggression level
+                    aggression_level = 'low'
+                    if 'aggression' in analysis:
+                        aggression_level = analysis['aggression'].get('level', 'low')
+                    
+                    return {
+                        'success': True,
+                        'emotion': emotion,
+                        'toxicity_score': toxicity_score,
+                        'aggression_level': aggression_level,
+                        'confidence': 0.8,
+                        'text': text,
+                        'cached': False,
+                        'ai_system': 'free_ai',
+                        'full_analysis': analysis
+                    }
+                else:
+                    logger.warning(f"Free AI analysis failed: {result.get('message', 'Unknown error')}")
+            except Exception as e:
+                logger.warning(f"Free AI analysis error: {e}, falling back to Gemini")
+        
+        # Fallback to Gemini
+        if self.model:
+            try:
+                prompt = f"""Analyze this message for psychological indicators:
 
 Message: "{text}"
 
@@ -178,67 +259,52 @@ Provide analysis in JSON format with:
 
 Be concise and return only valid JSON."""
 
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=GEMINI_TEMPERATURE,
-                    max_output_tokens=GEMINI_MAX_TOKENS
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=GEMINI_TEMPERATURE,
+                        max_output_tokens=GEMINI_MAX_TOKENS
+                    )
                 )
-            )
 
-            result_text = response.text.strip()
-            
-            if result_text.startswith('```json'):
-                result_text = result_text[7:]
-            if result_text.startswith('```'):
-                result_text = result_text[3:]
-            if result_text.endswith('```'):
-                result_text = result_text[:-3]
+                result_text = response.text.strip()
+                
+                if result_text.startswith('```json'):
+                    result_text = result_text[7:]
+                if result_text.startswith('```'):
+                    result_text = result_text[3:]
+                if result_text.endswith('```'):
+                    result_text = result_text[:-3]
 
-            import json
-            analysis = json.loads(result_text)
+                import json
+                analysis = json.loads(result_text)
 
-            return {
-                'success': True,
-                'text': text,
-                'emotion': analysis.get('emotion', 'unknown'),
-                'toxicity_score': float(analysis.get('toxicity_score', 0)),
-                'aggression_level': analysis.get('aggression_level', 'low'),
-                'confidence': float(analysis.get('confidence', 0)),
-                'cached': False
-            }
-
-        except Exception as e:
-            error_msg = str(e)
-            
-            # Handle quota exceeded gracefully
-            if "429" in error_msg or "quota" in error_msg.lower():
-                logger.warning(f"API quota exceeded: {error_msg}")
+                return {
+                    'success': True,
+                    'text': text,
+                    'emotion': analysis.get('emotion', 'unknown'),
+                    'toxicity_score': float(analysis.get('toxicity_score', 0)),
+                    'aggression_level': analysis.get('aggression_level', 'low'),
+                    'confidence': float(analysis.get('confidence', 0)),
+                    'cached': False,
+                    'ai_system': 'gemini'
+                }
+            except Exception as e:
+                logger.error(f"Gemini analysis error: {e}")
                 return {
                     'success': False,
-                    'error': 'API quota exceeded. Please check your billing.',
-                    'error_type': 'quota_exceeded',
+                    'error': f'Gemini analysis failed: {str(e)}',
                     'text': text,
                     'cached': False
                 }
-            
-            # Sanitize error to avoid exposing API keys
-            if 'api' in error_msg.lower() and 'key' in error_msg.lower():
-                logger.error("Invalid API credentials")
-                return {
-                    'success': False,
-                    'error': 'Invalid API credentials',
-                    'text': text,
-                    'cached': False
-                }
-            
-            logger.error(f"Error analyzing message: {error_msg}")
-            return {
-                'success': False,
-                'error': f'Analysis error: {error_msg}',
-                'text': text,
-                'cached': False
-            }
+        
+        # No AI systems available
+        return {
+            'success': False,
+            'error': 'No AI systems available',
+            'text': text,
+            'cached': False
+        }
 
     def analyze_message(self, text: str) -> Dict:
         """
@@ -445,10 +511,10 @@ Be concise and return only valid JSON."""
             return {'success': False, 'message': 'No messages to analyze'}
 
         if not self.configured:
-            logger.warning("Gemini not configured")
+            logger.warning("No AI systems configured")
             return {
                 'success': False,
-                'message': 'AI analysis not available - Gemini not configured',
+                'message': 'AI analysis not available - no AI systems configured',
                 'overall_tone': 'unknown',
                 'power_dynamics': 'unknown',
                 'communication_style': 'unknown',
@@ -457,13 +523,54 @@ Be concise and return only valid JSON."""
                 'summary': 'AI analysis unavailable'
             }
 
-        try:
-            conversation_text = "\n".join([
-                f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}"
-                for m in messages
-            ])
+        # Use Free AI if available
+        if self.free_ai and self.free_ai.configured:
+            try:
+                result = self.free_ai.analyze_conversation(messages)
+                if result['success']:
+                    analysis = result.get('analysis', {})
+                    
+                    # Convert free AI format to expected format
+                    overall_tone = analysis.get('overall_sentiment', 'neutral')
+                    power_dynamics = 'balanced'  # Default, could be enhanced
+                    communication_style = 'direct'  # Default, could be enhanced
+                    conflict_level = analysis.get('average_aggression', 0.0)
+                    
+                    # Extract manipulation indicators from patterns
+                    manipulation_indicators = []
+                    if 'conversation_dynamics' in analysis:
+                        dynamics = analysis['conversation_dynamics']
+                        for sender, profile in dynamics.get('sender_profiles', {}).items():
+                            if profile.get('avg_toxicity', 0) > 0.5:
+                                manipulation_indicators.append(f"{sender}: high toxicity")
+                    
+                    summary = f"Conversation analysis complete. Dominant emotion: {analysis.get('dominant_emotion', 'unknown')}"
+                    
+                    return {
+                        'success': True,
+                        'overall_tone': overall_tone,
+                        'power_dynamics': power_dynamics,
+                        'communication_style': communication_style,
+                        'conflict_level': conflict_level,
+                        'manipulation_indicators': manipulation_indicators,
+                        'summary': summary,
+                        'ai_system': 'free_ai',
+                        'full_analysis': analysis
+                    }
+                else:
+                    logger.warning(f"Free AI conversation analysis failed: {result.get('message', 'Unknown error')}")
+            except Exception as e:
+                logger.warning(f"Free AI conversation analysis error: {e}, falling back to Gemini")
+        
+        # Fallback to Gemini
+        if self.model:
+            try:
+                conversation_text = "\n".join([
+                    f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}"
+                    for m in messages
+                ])
 
-            prompt = f"""Analyze this conversation for psychological dynamics and patterns:
+                prompt = f"""Analyze this conversation for psychological dynamics and patterns:
 
 {conversation_text}
 
@@ -477,13 +584,13 @@ Provide analysis in JSON format with:
 
 Return only valid JSON."""
 
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=GEMINI_TEMPERATURE,
-                    max_output_tokens=GEMINI_MAX_TOKENS
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=GEMINI_TEMPERATURE,
+                        max_output_tokens=GEMINI_MAX_TOKENS
+                    )
                 )
-            )
 
             result_text = response.text.strip()
             
@@ -600,30 +707,45 @@ Return only valid JSON."""
             return {'success': False, 'message': 'No messages to analyze'}
 
         if not self.configured:
-            logger.warning("Gemini not configured")
+            logger.warning("No AI systems configured")
             return {
                 'success': False,
-                'message': 'AI analysis not available - Gemini not configured',
+                'message': 'AI analysis not available - no AI systems configured',
                 'personality_traits': [],
                 'behavioral_patterns': [],
                 'risk_factors': [],
                 'communication_style': 'unknown',
                 'psychological_state': 'unknown',
-                'recommendations': ['AI analysis unavailable - configure Gemini API key']
+                'recommendations': ['AI analysis unavailable - install transformers or configure Gemini API key']
             }
 
-        try:
-            conversation_text = "\n".join([
-                f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}"
-                for m in messages
-            ])
+        # Use Free AI if available
+        if self.free_ai and self.free_ai.configured:
+            try:
+                result = self.free_ai.generate_psychological_profile(messages, forensics_data)
+                if result['success']:
+                    # Free AI already returns the expected format
+                    result['ai_system'] = 'free_ai'
+                    return result
+                else:
+                    logger.warning(f"Free AI profile generation failed: {result.get('message', 'Unknown error')}")
+            except Exception as e:
+                logger.warning(f"Free AI profile generation error: {e}, falling back to Gemini")
+        
+        # Fallback to Gemini
+        if self.model:
+            try:
+                conversation_text = "\n".join([
+                    f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}"
+                    for m in messages
+                ])
 
-            forensics_context = ""
-            if forensics_data:
-                avg_stress = sum(f.get('stress_level', 0) for f in forensics_data) / len(forensics_data)
-                forensics_context = f"\n\nAudio Analysis Context:\n- Average stress level: {avg_stress:.2f}/100"
+                forensics_context = ""
+                if forensics_data:
+                    avg_stress = sum(f.get('stress_level', 0) for f in forensics_data) / len(forensics_data)
+                    forensics_context = f"\n\nAudio Analysis Context:\n- Average stress level: {avg_stress:.2f}/100"
 
-            prompt = f"""Create a psychological profile based on this conversation:
+                prompt = f"""Create a psychological profile based on this conversation:
 
 {conversation_text}{forensics_context}
 
@@ -638,13 +760,13 @@ Analyze and provide in JSON format:
 
 Return only valid JSON."""
 
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=GEMINI_TEMPERATURE,
-                    max_output_tokens=GEMINI_MAX_TOKENS
+                response = self.model.generate_content(
+                    prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=GEMINI_TEMPERATURE,
+                        max_output_tokens=GEMINI_MAX_TOKENS
+                    )
                 )
-            )
 
             result_text = response.text.strip()
             
