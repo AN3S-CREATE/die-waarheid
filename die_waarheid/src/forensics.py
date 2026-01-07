@@ -688,40 +688,6 @@ class ForensicsEngine:
         
         return float(np.mean(voiced_f0)), float(np.std(voiced_f0))
 
-    def get_memory_statistics(self) -> Dict[str, Any]:
-        """
-        Get comprehensive memory usage statistics for this engine instance
-        
-        Returns:
-            Dictionary with memory statistics
-        """
-        current_memory = get_memory_usage()
-        global_stats = get_memory_stats()
-        
-        return {
-            'engine_stats': {
-                'operation_count': self._operation_count,
-                'cache_size': len(self._analysis_cache),
-                'max_cache_size': self._max_cache_size,
-                'audio_buffer_refs': len(self._audio_buffer_refs),
-                'last_cleanup': self._last_cleanup,
-                'audio_loaded': self.audio_data is not None,
-                'audio_memory_mb': (self.audio_data.nbytes / 1024 / 1024) if self.audio_data is not None else 0
-            },
-            'global_stats': global_stats,
-            'current_memory_mb': current_memory
-        }
-
-    def cleanup_all(self):
-        """
-        Perform comprehensive cleanup of all cached data and audio buffers
-        """
-        self._cleanup_audio_data()
-        self._analysis_cache.clear()
-        self._audio_buffer_refs.clear()
-        gc.collect()
-        logger.info("Performed comprehensive cleanup of ForensicsEngine")
-
     def _extract_silence_ratio(self) -> float:
         """Extract silence ratio"""
         return self.calculate_silence_ratio()
