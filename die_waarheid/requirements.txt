@@ -10,6 +10,12 @@ streamlit==1.52.2
 python-dotenv==1.2.1
 pydantic>=2.0.0
 
+# API Framework & Security
+fastapi>=0.104.0
+uvicorn>=0.24.0
+slowapi>=0.1.9
+bleach>=6.1.0
+
 # Data Processing
 pandas>=2.0.0
 numpy>=1.24.0
@@ -33,6 +39,12 @@ scipy>=1.11.0
 
 # OpenAI Whisper for audio transcription (REQUIRED)
 openai-whisper>=20231117
+
+# PyTorch for GPU acceleration (optional but recommended)
+torch>=2.0.0
+
+# NVIDIA GPU support (optional)
+# nvidia-ml-py>=12.535.0
 
 # Google Generative AI for expert panel & AI analysis
 # Note: google-generativeai is deprecated, but keeping for compatibility
