@@ -16,6 +16,9 @@ uvicorn>=0.24.0
 slowapi>=0.1.9
 bleach>=6.1.0
 
+# System Monitoring & Health
+psutil>=5.9.0
+
 # Data Processing
 pandas>=2.0.0
 numpy>=1.24.0

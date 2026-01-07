@@ -181,6 +181,14 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize forensics engine: {e}")
     
+    # Initialize health monitoring
+    try:
+        from src.health_monitor import start_health_monitoring
+        start_health_monitoring()
+        logger.info("Health monitoring started")
+    except Exception as e:
+        logger.warning(f"Failed to start health monitoring: {e}")
+    
     logger.info("Services initialized successfully")
 
 
@@ -225,15 +233,97 @@ async def root():
 @app.get("/api/health")
 @limiter.limit("30/minute")
 async def health_check(request: Request):
-    """Enhanced health check endpoint with GPU information - no authentication required"""
-    health_info = {
-        "status": "healthy",
-        "transcriber": transcriber is not None,
-        "forensics": forensics_engine is not None,
-        "speaker_system": speaker_system is not None,
-        "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic",
-        "timestamp": datetime.now().isoformat()
-    }
+    """Comprehensive health check endpoint with system monitoring - no authentication required"""
+    try:
+        # Import health monitoring features
+        from src.health_monitor import get_health_summary, check_component_health
+        
+        # Get comprehensive health summary
+        health_summary = get_health_summary()
+        
+        # Check component health
+        component_checks = {}
+        
+        # Check transcriber health
+        if transcriber is not None:
+            def check_transcriber():
+                return {
+                    "loaded": transcriber.model is not None,
+                    "model_size": transcriber.model_size,
+                    "available_models": transcriber.AVAILABLE_MODELS
+                }
+            component_checks["transcriber"] = check_component_health("transcriber", check_transcriber)
+        
+        # Check forensics engine health
+        if forensics_engine is not None:
+            def check_forensics():
+                return {"available": True, "engine_type": "forensics"}
+            component_checks["forensics"] = check_component_health("forensics", check_forensics)
+        
+        # Check speaker system health
+        if speaker_system is not None:
+            def check_speaker_system():
+                return {"available": True, "system_type": "speaker_identification"}
+            component_checks["speaker_system"] = check_component_health("speaker_system", check_speaker_system)
+        
+        # Combine health information
+        health_info = {
+            "status": health_summary.get("overall_status", "unknown"),
+            "timestamp": health_summary.get("timestamp", datetime.now().isoformat()),
+            "system_metrics": health_summary.get("system_metrics", {}),
+            "component_health": {
+                name: {
+                    "status": health.status,
+                    "response_time_ms": health.response_time_ms,
+                    "error_message": health.error_message
+                }
+                for name, health in component_checks.items()
+            },
+            "component_summary": health_summary.get("component_summary", {}),
+            "system_info": {
+                "platform": health_summary.get("system_info", {}).get("platform", "unknown"),
+                "architecture": health_summary.get("system_info", {}).get("architecture", "unknown"),
+                "python_version": health_summary.get("system_info", {}).get("python_version", "unknown"),
+                "hostname": health_summary.get("system_info", {}).get("hostname", "unknown"),
+                "uptime": health_summary.get("system_metrics", {}).get("uptime_human", "unknown")
+            },
+            "services": {
+                "transcriber": transcriber is not None,
+                "forensics": forensics_engine is not None,
+                "speaker_system": speaker_system is not None,
+                "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic"
+            }
+        }
+        
+    except ImportError:
+        # Fallback to basic health check if health monitoring not available
+        health_info = {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "services": {
+                "transcriber": transcriber is not None,
+                "forensics": forensics_engine is not None,
+                "speaker_system": speaker_system is not None,
+                "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic"
+            },
+            "health_monitoring": {
+                "available": False,
+                "message": "Health monitoring module not available"
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error in health check: {e}")
+        health_info = {
+            "status": "error",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "services": {
+                "transcriber": transcriber is not None,
+                "forensics": forensics_engine is not None,
+                "speaker_system": speaker_system is not None,
+                "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic"
+            }
+        }
     
     # Add GPU information if available
     try:
@@ -589,6 +679,282 @@ async def model_status(
         raise HTTPException(
             status_code=500,
             detail=f"Error getting model status: {str(e)}"
+        )
+
+
+@app.get("/api/health/detailed")
+@limiter.limit("10/minute")
+async def detailed_health_check(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get detailed health information with full system metrics - requires authentication
+    
+    Returns:
+        Comprehensive health status with system metrics, trends, and component details
+    """
+    try:
+        # Import health monitoring features
+        from src.health_monitor import get_health_summary, check_component_health
+        
+        # Get comprehensive health summary
+        health_summary = get_health_summary()
+        
+        # Perform detailed component health checks
+        component_checks = {}
+        
+        # Check transcriber health with detailed info
+        if transcriber is not None:
+            def check_transcriber_detailed():
+                try:
+                    validation_info = transcriber.get_model_validation_info() if hasattr(transcriber, 'get_model_validation_info') else {}
+                    gpu_info = transcriber.get_gpu_performance_info() if hasattr(transcriber, 'get_gpu_performance_info') else {}
+                    
+                    return {
+                        "loaded": transcriber.model is not None,
+                        "model_size": transcriber.model_size,
+                        "available_models": transcriber.AVAILABLE_MODELS,
+                        "validation_info": validation_info,
+                        "gpu_info": gpu_info
+                    }
+                except Exception as e:
+                    return {"error": str(e), "loaded": transcriber.model is not None}
+            
+            component_checks["transcriber"] = check_component_health("transcriber", check_transcriber_detailed)
+        
+        # Check forensics engine health
+        if forensics_engine is not None:
+            def check_forensics_detailed():
+                return {
+                    "available": True,
+                    "engine_type": "forensics",
+                    "features": ["audio_analysis", "statement_verification"]
+                }
+            component_checks["forensics"] = check_component_health("forensics", check_forensics_detailed)
+        
+        # Check speaker system health
+        if speaker_system is not None:
+            def check_speaker_system_detailed():
+                return {
+                    "available": True,
+                    "system_type": "speaker_identification",
+                    "features": ["voice_analysis", "speaker_recognition"]
+                }
+            component_checks["speaker_system"] = check_component_health("speaker_system", check_speaker_system_detailed)
+        
+        # Add GPU health check if available
+        try:
+            from src.gpu_manager import is_gpu_available, gpu_manager
+            
+            def check_gpu_health():
+                if is_gpu_available():
+                    return {
+                        "available": True,
+                        "performance_stats": gpu_manager.get_performance_stats(),
+                        "memory_info": gpu_manager.get_memory_info()
+                    }
+                else:
+                    return {"available": False, "reason": "No GPU detected"}
+            
+            component_checks["gpu"] = check_component_health("gpu", check_gpu_health)
+        except ImportError:
+            pass
+        
+        # Add model validation health check if available
+        try:
+            from src.model_validator import get_all_models_validation_status
+            
+            def check_model_validation():
+                return get_all_models_validation_status()
+            
+            component_checks["model_validation"] = check_component_health("model_validation", check_model_validation)
+        except ImportError:
+            pass
+        
+        # Add security health check if available
+        if ADVANCED_SECURITY_AVAILABLE:
+            def check_security():
+                try:
+                    from src.security import security_validator
+                    return security_validator.get_security_report()
+                except Exception as e:
+                    return {"error": str(e), "available": False}
+            
+            component_checks["security"] = check_component_health("security", check_security)
+        
+        # Combine detailed health information
+        detailed_health = {
+            **health_summary,
+            "detailed_component_health": {
+                name: {
+                    "status": health.status,
+                    "last_check": health.last_check.isoformat(),
+                    "response_time_ms": health.response_time_ms,
+                    "error_message": health.error_message,
+                    "details": health.details
+                }
+                for name, health in component_checks.items()
+            }
+        }
+        
+        return detailed_health
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Health monitoring module not available"
+        )
+    except Exception as e:
+        logger.error(f"Error getting detailed health: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving detailed health information"
+        )
+
+
+@app.get("/api/health/metrics")
+@limiter.limit("20/minute")
+async def health_metrics(request: Request, api_key: str = Depends(verify_api_key), limit: int = 50):
+    """
+    Get system metrics history - requires authentication
+    
+    Args:
+        limit: Maximum number of metrics entries to return (default: 50, max: 200)
+    
+    Returns:
+        Historical system metrics data
+    """
+    try:
+        # Import health monitoring features
+        from src.health_monitor import get_metrics_history
+        
+        # Validate limit
+        if limit > 200:
+            limit = 200
+        elif limit < 1:
+            limit = 1
+        
+        metrics_history = get_metrics_history(limit)
+        
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "metrics_count": len(metrics_history),
+            "limit": limit,
+            "metrics": metrics_history
+        }
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Health monitoring module not available"
+        )
+    except Exception as e:
+        logger.error(f"Error getting health metrics: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving health metrics"
+        )
+
+
+@app.post("/api/health/export")
+@limiter.limit("5/minute")
+async def export_health_report(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Export comprehensive health report - requires authentication
+    
+    Returns:
+        Health report export information
+    """
+    try:
+        # Import health monitoring features
+        from src.health_monitor import health_monitor
+        
+        # Export health report
+        report_path = health_monitor.export_health_report()
+        
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "report_exported": True,
+            "report_path": str(report_path),
+            "report_size_bytes": report_path.stat().st_size if report_path.exists() else 0
+        }
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Health monitoring module not available"
+        )
+    except Exception as e:
+        logger.error(f"Error exporting health report: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error exporting health report"
+        )
+
+
+@app.post("/api/health/monitoring/start")
+@limiter.limit("5/minute")
+async def start_health_monitoring(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Start background health monitoring - requires authentication
+    
+    Returns:
+        Monitoring start status
+    """
+    try:
+        # Import health monitoring features
+        from src.health_monitor import start_health_monitoring
+        
+        start_health_monitoring()
+        
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "monitoring_started": True,
+            "message": "Background health monitoring started"
+        }
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Health monitoring module not available"
+        )
+    except Exception as e:
+        logger.error(f"Error starting health monitoring: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error starting health monitoring"
+        )
+
+
+@app.post("/api/health/monitoring/stop")
+@limiter.limit("5/minute")
+async def stop_health_monitoring(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Stop background health monitoring - requires authentication
+    
+    Returns:
+        Monitoring stop status
+    """
+    try:
+        # Import health monitoring features
+        from src.health_monitor import stop_health_monitoring
+        
+        stop_health_monitoring()
+        
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "monitoring_stopped": True,
+            "message": "Background health monitoring stopped"
+        }
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Health monitoring module not available"
+        )
+    except Exception as e:
+        logger.error(f"Error stopping health monitoring: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error stopping health monitoring"
         )
 
 
