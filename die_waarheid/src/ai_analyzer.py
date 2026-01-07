@@ -90,7 +90,7 @@ class AIAnalyzer:
 
     def sanitize_input(self, text: str, max_length: int = 10000) -> str:
         """
-        Sanitize user input for AI prompts to prevent injection attacks
+        Enhanced sanitize user input for AI prompts with advanced security
         
         Args:
             text: Input text to sanitize
@@ -99,16 +99,22 @@ class AIAnalyzer:
         Returns:
             Sanitized text
         """
-        if not isinstance(text, str):
-            return ""
-        
-        text = text[:max_length]
-        text = text.replace('```', '')
-        text = text.replace('"""', '')
-        text = text.replace("'''", '')
-        text = text.strip()
-        
-        return text
+        try:
+            # Use advanced security module for comprehensive sanitization
+            from src.security import sanitize_user_input
+            return sanitize_user_input(text, max_length)
+        except ImportError:
+            # Fallback to basic sanitization if security module unavailable
+            if not isinstance(text, str):
+                return ""
+            
+            text = text[:max_length]
+            text = text.replace('```', '')
+            text = text.replace('"""', '')
+            text = text.replace("'''", '')
+            text = text.strip()
+            
+            return text
 
     def configure_gemini(self) -> bool:
         """
