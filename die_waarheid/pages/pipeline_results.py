@@ -77,10 +77,21 @@ with st.sidebar:
             # Handle uploaded files
             if uploaded_files:
                 import tempfile
-                for uploaded_file in uploaded_files:
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
-                        tmp.write(uploaded_file.read())
-                        files_to_process.append(Path(tmp.name))
+                temp_files = []
+                try:
+                    for uploaded_file in uploaded_files:
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix) as tmp:
+                            tmp.write(uploaded_file.read())
+                            tmp_path = Path(tmp.name)
+                            files_to_process.append(tmp_path)
+                            temp_files.append(tmp_path)
+                except Exception as e:
+                    # Clean up any temp files created so far
+                    for tmp_path in temp_files:
+                        if tmp_path.exists():
+                            tmp_path.unlink()
+                    st.error(f"Error preparing uploaded files: {str(e)}")
+                    files_to_process = []  # Empty list to skip processing
             
             # Or use existing files
             elif audio_files:
@@ -105,6 +116,12 @@ with st.sidebar:
                 st.session_state.results_df = pd.DataFrame(results)
                 st.success(f"✅ Processed {len(results)} files!")
                 st.rerun()
+            
+            # Clean up temporary files
+            if uploaded_files and 'temp_files' in locals():
+                for tmp_path in temp_files:
+                    if tmp_path.exists():
+                        tmp_path.unlink()
     
     # Export button
     if st.session_state.results_df is not None:

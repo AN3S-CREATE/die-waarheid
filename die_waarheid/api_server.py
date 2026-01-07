@@ -19,6 +19,20 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+# Import advanced security features
+try:
+    from src.security import (
+        add_security_headers,
+        validate_request_security,
+        sanitize_user_input,
+        validate_file_security,
+        security_validator
+    )
+    ADVANCED_SECURITY_AVAILABLE = True
+except ImportError:
+    logger.warning("Advanced security module not available, using basic security")
+    ADVANCED_SECURITY_AVAILABLE = False
+
 from src.whisper_transcriber import WhisperTranscriber
 from src.forensics import ForensicsEngine
 from src.speaker_identification import SpeakerIdentificationSystem
@@ -86,16 +100,38 @@ async def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(se
         )
     return credentials.credentials
 
-# File validation
-async def validate_file_size(file: UploadFile) -> None:
-    """Validate uploaded file size"""
+# Enhanced file validation with security
+async def validate_file_security_and_size(file: UploadFile) -> None:
+    """
+    Comprehensive file validation including size and security checks
+    
+    Args:
+        file: Uploaded file to validate
+        
+    Raises:
+        HTTPException: If file validation fails
+    """
     content = await file.read()
+    
+    # Size validation
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,
             detail=f"File too large. Maximum size: {MAX_FILE_SIZE/(1024*1024):.0f}MB"
         )
+    
+    # Advanced security validation if available
+    if ADVANCED_SECURITY_AVAILABLE:
+        allowed_audio_types = ['.wav', '.mp3', '.mp4', '.m4a', '.flac', '.ogg']
+        validate_file_security(content, file.filename or "unknown", allowed_audio_types)
+    
     await file.seek(0)  # Reset file pointer
+
+
+# Legacy function for backward compatibility
+async def validate_file_size(file: UploadFile) -> None:
+    """Legacy file size validation (deprecated - use validate_file_security_and_size)"""
+    await validate_file_security_and_size(file)
 
 # Configure CORS with security
 ALLOWED_ORIGINS = os.getenv(
@@ -127,7 +163,7 @@ speaker_system: Optional[SpeakerIdentificationSystem] = None
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    global transcriber, forensics_engine, speaker_system
+    global forensics_engine, speaker_system
     
     logger.info("Initializing services...")
     
@@ -145,30 +181,237 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize forensics engine: {e}")
     
+    # Initialize health monitoring
+    try:
+        from src.health_monitor import start_health_monitoring
+        start_health_monitoring()
+        logger.info("Health monitoring started")
+    except Exception as e:
+        logger.warning(f"Failed to start health monitoring: {e}")
+    
     logger.info("Services initialized successfully")
+
+
+@app.middleware("http")
+async def security_middleware(request: Request, call_next):
+    """Security middleware for request validation and response headers"""
+    try:
+        # Validate request security if advanced security is available
+        if ADVANCED_SECURITY_AVAILABLE:
+            validate_request_security(request)
+        
+        # Process request
+        response = await call_next(request)
+        
+        # Add security headers if advanced security is available
+        if ADVANCED_SECURITY_AVAILABLE:
+            response = add_security_headers(response)
+        
+        return response
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (rate limiting, blocked IPs, etc.)
+        raise
+    except Exception as e:
+        logger.error(f"Security middleware error: {str(e)}")
+        # Continue processing on middleware errors
+        response = await call_next(request)
+        return response
 
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
+    """Root endpoint with security headers"""
     return {
         "name": "Die Waarheid API",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic"
     }
 
 
 @app.get("/api/health")
 @limiter.limit("30/minute")
 async def health_check(request: Request):
-    """Health check endpoint - no authentication required"""
-    return {
+    """Enhanced health check endpoint with GPU information - no authentication required"""
+    health_info = {
         "status": "healthy",
         "transcriber": transcriber is not None,
         "forensics": forensics_engine is not None,
         "speaker_system": speaker_system is not None,
+        "security": "enhanced" if ADVANCED_SECURITY_AVAILABLE else "basic",
         "timestamp": datetime.now().isoformat()
     }
+    
+    # Add GPU information if available
+    try:
+        from src.gpu_manager import is_gpu_available, get_optimal_device, gpu_manager
+        
+        health_info["gpu"] = {
+            "available": is_gpu_available(),
+            "optimal_device": get_optimal_device(),
+            "optimization_enabled": True
+        }
+        
+        # Add basic GPU stats if available
+        if is_gpu_available():
+            gpu_stats = gpu_manager.get_performance_stats()
+            health_info["gpu"]["device_count"] = gpu_stats.get("device_count", 0)
+            health_info["gpu"]["cuda_version"] = gpu_stats.get("cuda_version", "Unknown")
+            
+            # Add memory info for optimal device
+            memory_info = gpu_manager.get_memory_info()
+            if memory_info.get("available", False):
+                health_info["gpu"]["memory"] = {
+                    "total_mb": memory_info.get("total_mb", 0),
+                    "free_mb": memory_info.get("free_mb", 0),
+                    "utilization_percent": memory_info.get("utilization_percent", 0)
+                }
+        
+    except ImportError:
+        health_info["gpu"] = {
+            "available": False,
+            "optimization_enabled": False,
+            "message": "GPU optimization module not available"
+        }
+    except Exception as e:
+        logger.warning(f"Error getting GPU information for health check: {e}")
+        health_info["gpu"] = {
+            "available": False,
+            "optimization_enabled": False,
+            "error": str(e)
+        }
+    
+    return health_info
+
+
+@app.get("/api/security/status")
+@limiter.limit("10/minute")
+async def security_status(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get security system status and statistics - requires authentication
+    
+    Returns:
+        Security configuration and statistics
+    """
+    if not ADVANCED_SECURITY_AVAILABLE:
+        return {
+            "security_enabled": False,
+            "message": "Advanced security module not available"
+        }
+    
+    try:
+        security_report = security_validator.get_security_report()
+        return {
+            "security_enabled": True,
+            "timestamp": datetime.now().isoformat(),
+            **security_report
+        }
+    except Exception as e:
+        logger.error(f"Error getting security status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving security status"
+        )
+
+
+@app.get("/api/gpu/status")
+@limiter.limit("10/minute")
+async def gpu_status(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get comprehensive GPU status and performance information - requires authentication
+    
+    Returns:
+        GPU configuration, performance statistics, and optimization settings
+    """
+    try:
+        from src.gpu_manager import is_gpu_available, gpu_manager
+        
+        if not is_gpu_available():
+            return {
+                "gpu_available": False,
+                "message": "GPU not available or optimization disabled",
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        # Get comprehensive GPU statistics
+        gpu_stats = gpu_manager.get_performance_stats()
+        
+        # Get memory information for all devices
+        memory_info = gpu_manager.get_memory_info()
+        
+        # Get optimization settings for different model sizes
+        optimization_settings = {}
+        for model_size in ["tiny", "small", "medium", "large"]:
+            optimization_settings[model_size] = gpu_manager.optimize_model_loading(model_size)
+        
+        gpu_status_info = {
+            "gpu_available": True,
+            "timestamp": datetime.now().isoformat(),
+            "performance_stats": gpu_stats,
+            "memory_info": memory_info,
+            "optimization_settings": optimization_settings,
+            "environment_config": {
+                "ENABLE_GPU": os.getenv("ENABLE_GPU", "true"),
+                "FORCE_CPU": os.getenv("FORCE_CPU", "false"),
+                "GPU_MEMORY_FRACTION": os.getenv("GPU_MEMORY_FRACTION", "0.8"),
+                "GPU_MEMORY_GROWTH": os.getenv("GPU_MEMORY_GROWTH", "true")
+            }
+        }
+        
+        # Add transcriber GPU info if available
+        if transcriber is not None:
+            try:
+                transcriber_gpu_info = transcriber.get_gpu_performance_info()
+                gpu_status_info["transcriber_gpu_info"] = transcriber_gpu_info
+            except Exception as e:
+                logger.warning(f"Error getting transcriber GPU info: {e}")
+                gpu_status_info["transcriber_gpu_info"] = {"error": str(e)}
+        
+        return gpu_status_info
+        
+    except ImportError:
+        return {
+            "gpu_available": False,
+            "message": "GPU optimization module not available",
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error getting GPU status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving GPU status"
+        )
+
+
+@app.get("/api/security/status")
+@limiter.limit("10/minute")
+async def security_status(request: Request, api_key: str = Depends(verify_api_key)):
+    """
+    Get security system status and statistics - requires authentication
+    
+    Returns:
+        Security configuration and statistics
+    """
+    if not ADVANCED_SECURITY_AVAILABLE:
+        return {
+            "security_enabled": False,
+            "message": "Advanced security module not available"
+        }
+    
+    try:
+        security_report = security_validator.get_security_report()
+        return {
+            "security_enabled": True,
+            "timestamp": datetime.now().isoformat(),
+            **security_report
+        }
+    except Exception as e:
+        logger.error(f"Error getting security status: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Error retrieving security status"
+        )
 
 
 @app.post("/api/transcribe")
@@ -185,10 +428,15 @@ async def transcribe_audio(
     
     tmp_path = None
     try:
-        # Validate file size
-        await validate_file_size(file)
+        # Enhanced file validation with security checks
+        await validate_file_security_and_size(file)
         
-        # Validate input parameters
+        # Sanitize and validate input parameters
+        if ADVANCED_SECURITY_AVAILABLE:
+            language = sanitize_user_input(language, max_length=10)
+            model_size = sanitize_user_input(model_size, max_length=20)
+        
+        # Validate parameters
         if language not in ['af', 'en', 'nl']:
             raise HTTPException(status_code=400, detail="Invalid language. Must be af, en, or nl")
         

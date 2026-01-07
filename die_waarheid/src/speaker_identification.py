@@ -24,7 +24,7 @@ import hashlib
 import numpy as np
 
 from sqlalchemy import create_engine, Column, String, DateTime, Float, Text, Boolean, JSON, Integer
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 
 logger = logging.getLogger(__name__)
@@ -738,6 +738,19 @@ class SpeakerIdentificationSystem:
             summary['total_voice_notes'] += profile.voice_note_count
 
         return summary
+
+    def close(self):
+        """Close database connections and cleanup resources"""
+        try:
+            if hasattr(self, 'engine'):
+                self.engine.dispose()
+                logger.info("Database connections closed")
+        except Exception as e:
+            logger.error(f"Error closing database connections: {str(e)}")
+    
+    def __del__(self):
+        """Destructor to ensure connections are closed"""
+        self.close()
 
 
 if __name__ == "__main__":

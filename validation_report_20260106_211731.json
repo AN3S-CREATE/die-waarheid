@@ -1,0 +1,95 @@
+{
+  "timestamp": "2026-01-06T21:17:12.279901",
+  "validations": {
+    "environment": {
+      "status": "healthy",
+      "details": {
+        "python_version": "3.14.0",
+        "platform": "win32"
+      }
+    },
+    "dependencies": {
+      "status": "error",
+      "details": {
+        "streamlit": "installed",
+        "librosa": "installed",
+        "torch": "installed",
+        "pandas": "installed",
+        "numpy": "installed",
+        "plotly": "installed",
+        "sqlalchemy": "installed",
+        "google.generativeai": "installed"
+      },
+      "missing": [
+        "transformers"
+      ]
+    },
+    "configuration": {
+      "status": "healthy",
+      "details": {
+        "env_file": "exists",
+        "gemini_key": "configured"
+      }
+    },
+    "directories": {
+      "status": "healthy",
+      "details": {
+        "die_waarheid/data/audio": "exists",
+        "die_waarheid/data/text": "exists",
+        "die_waarheid/data/temp": "exists",
+        "die_waarheid/data/output": "exists",
+        "die_waarheid/data/logs": "created",
+        "die_waarheid/data/reports": "created"
+      }
+    },
+    "api_connectivity": {
+      "status": "healthy",
+      "details": {
+        "gemini": "connected"
+      }
+    },
+    "core_components": {
+      "status": "healthy",
+      "details": {
+        "pipeline_processor": "available",
+        "whisper_transcriber": "available",
+        "forensics_engine": "available",
+        "ai_analyzer": "available",
+        "speaker_identification": "available"
+      }
+    },
+    "audio_processing": {
+      "status": "error",
+      "details": {
+        "audio_processing": "error: load() missing 1 required positional argument: 'path'"
+      }
+    },
+    "ai_analysis": {
+      "status": "healthy",
+      "details": {
+        "fallback_analysis": "working",
+        "emotion_detection": "neutral"
+      }
+    },
+    "database": {
+      "status": "healthy",
+      "details": {
+        "speaker_db": "connected",
+        "participants_count": 0
+      }
+    },
+    "performance": {
+      "status": "error",
+      "details": {
+        "performance": "error: No module named 'psutil'"
+      }
+    }
+  },
+  "overall_status": "unhealthy",
+  "errors": [
+    "Missing packages: transformers",
+    "Audio processing error: load() missing 1 required positional argument: 'path'",
+    "Performance check error: No module named 'psutil'"
+  ],
+  "warnings": []
+}

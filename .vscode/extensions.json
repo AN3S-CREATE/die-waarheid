@@ -4,6 +4,7 @@
         "formulahendry.code-runner",
         "ms-python.vscode-python-envs",
         "ms-python.python",
-        "bierner.markdown-preview-github-styles"
+        "bierner.markdown-preview-github-styles",
+        "henriiik.docker-linter"
     ]
 }

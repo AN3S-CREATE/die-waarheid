@@ -6,8 +6,10 @@ Automated pipeline: Upload → Transcribe → Analyze → AI Interpret → Resul
 import logging
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import os
 
 from src.whisper_transcriber import WhisperTranscriber
 from src.forensics import ForensicsEngine
@@ -26,7 +28,8 @@ class PipelineProcessor:
     def __init__(self, case_id: str = "MAIN_CASE"):
         self.case_id = case_id
         self.transcriber = None
-        self.forensics = ForensicsEngine(use_cache=True)
+        # Don't use cache in parallel processing to avoid threading issues
+        self.forensics = ForensicsEngine(use_cache=False)
         self.speaker_system = SpeakerIdentificationSystem(case_id)
         self.ai_analyzer = AIAnalyzer()
         self.results = []
@@ -54,6 +57,23 @@ class PipelineProcessor:
         Returns:
             Complete analysis results dictionary
         """
+        # Input validation
+        if not isinstance(audio_path, Path):
+            audio_path = Path(audio_path)
+        
+        if not audio_path.exists():
+            return {
+                'filename': audio_path.name,
+                'timestamp': datetime.now(),
+                'success': False,
+                'errors': [f"File not found: {audio_path}"],
+                'transcription': '',
+                'ai_interpretation': 'File not found',
+                'risk_score': 0,
+                'stress_level': 0,
+                'identified_speaker': 'Unknown'
+            }
+        
         logger.info(f"Processing {audio_path.name} through pipeline...")
         
         result = {
@@ -108,8 +128,12 @@ class PipelineProcessor:
                     result['toxicity'] = self.ai_analyzer.detect_toxicity(result['transcription'])
                     result['narcissism'] = self.ai_analyzer.detect_narcissistic_patterns(result['transcription'])
                 else:
-                    result['ai_interpretation'] = "AI analysis unavailable"
-                    result['errors'].append(f"AI analysis failed: {ai_analysis.get('message')}")
+                    error_msg = ai_analysis.get('error', 'Unknown error')
+                    if ai_analysis.get('error_type') == 'quota_exceeded':
+                        result['ai_interpretation'] = "⚠️ API quota exceeded. Please check billing."
+                    else:
+                        result['ai_interpretation'] = f"AI analysis failed: {error_msg}"
+                    result['errors'].append(f"AI analysis failed: {error_msg}")
             else:
                 result['ai_interpretation'] = "No transcription available for AI analysis"
             
@@ -193,26 +217,52 @@ class PipelineProcessor:
         self,
         audio_files: List[Path],
         language: str = "af",
-        model_size: str = "small"
-    ) -> List[Dict]:
+        model_size: str = "small",
+        max_workers: int = 4
+    ) -> List[Dict[str, Any]]:
         """
-        Process multiple voice notes through pipeline
+        Process multiple voice notes through pipeline in parallel
         
         Args:
             audio_files: List of audio file paths
             language: Language code
             model_size: Whisper model size
+            max_workers: Number of parallel workers
             
         Returns:
             List of analysis results
         """
-        logger.info(f"Processing batch of {len(audio_files)} files...")
+        logger.info(f"Processing batch of {len(audio_files)} files with {max_workers} workers...")
         
         results = []
-        for i, audio_path in enumerate(audio_files, 1):
-            logger.info(f"Processing file {i}/{len(audio_files)}: {audio_path.name}")
-            result = self.process_voice_note(audio_path, language, model_size)
-            results.append(result)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all tasks
+            future_to_file = {
+                executor.submit(self.process_voice_note, audio_path, language, model_size): audio_path
+                for audio_path in audio_files
+            }
+            
+            # Collect results as they complete
+            for future in as_completed(future_to_file):
+                audio_path = future_to_file[future]
+                try:
+                    result = future.result()
+                    results.append(result)
+                    logger.info(f"Completed: {audio_path.name}")
+                except Exception as e:
+                    logger.error(f"Failed to process {audio_path.name}: {str(e)}")
+                    # Add error result
+                    results.append({
+                        'filename': audio_path.name,
+                        'timestamp': datetime.now(),
+                        'success': False,
+                        'errors': [f"Processing failed: {str(e)}"],
+                        'transcription': '',
+                        'ai_interpretation': 'Processing failed',
+                        'risk_score': 0,
+                        'stress_level': 0,
+                        'identified_speaker': 'Unknown'
+                    })
         
         return results
     

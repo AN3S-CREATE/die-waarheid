@@ -18,6 +18,20 @@ from config import (
     TEMP_DIR
 )
 
+# Import GPU optimization features
+try:
+    from src.gpu_manager import (
+        get_optimal_device,
+        is_gpu_available,
+        get_model_optimization_settings,
+        cleanup_gpu_memory,
+        gpu_manager
+    )
+    GPU_OPTIMIZATION_AVAILABLE = True
+except ImportError:
+    logger.warning("GPU optimization module not available, using CPU mode")
+    GPU_OPTIMIZATION_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -57,23 +71,7 @@ class WhisperTranscriber:
         Returns:
             Device string ('cuda', 'mps', or 'cpu')
         """
-        # Check environment variable first
-        device_env = os.getenv('DEVICE', 'auto').lower()
-        if device_env != 'auto':
-            return device_env
-        
-        # Auto-detect optimal device
-        if torch.cuda.is_available():
-            device = 'cuda'
-            logger.info(f"CUDA available: Using GPU {torch.cuda.get_device_name()}")
-        elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
-            device = 'mps'
-            logger.info("MPS available: Using Apple Silicon GPU")
-        else:
-            device = 'cpu'
-            logger.info("Using CPU for inference")
-        
-        return device
+        Load Whisper model with GPU optimization
 
     def load_model(self) -> bool:
         """
@@ -92,21 +90,46 @@ class WhisperTranscriber:
                 return True
         
         try:
-            logger.info(f"Loading Whisper {self.model_size} model on {self.device}...")
+            logger.info(f"Loading Whisper {self.model_size} model...")
             
-            # Load model with device specification
-            self.model = whisper.load_model(self.model_size, device=self.device)
+            # Get GPU optimization settings if available
+            if GPU_OPTIMIZATION_AVAILABLE:
+                optimization_settings = get_model_optimization_settings(self.model_size)
+                device = optimization_settings.get("device", "cpu")
+                
+                logger.info(f"GPU optimization available - using device: {device}")
+                
+                # Load model with device specification
+                self.model = whisper.load_model(self.model_size, device=device)
+                
+                # Store optimization settings for transcription
+                self._optimization_settings = optimization_settings
+                
+                # Log GPU memory usage if on GPU
+                if device != "cpu":
+                    memory_info = gpu_manager.get_memory_info()
+                    logger.info(f"GPU memory after model loading: {memory_info.get('used_mb', 0)}MB used")
+            else:
+                # Fallback to CPU loading
+                self.model = whisper.load_model(self.model_size)
+                self._optimization_settings = {
+                    "device": "cpu",
+                    "fp16": False,
+                    "memory_efficient": True,
+                    "batch_size": 1,
+                    "num_workers": 1
+                }
             
-            # Cache the model for future use
-            with self._cache_lock:
-                self._model_cache[cache_key] = self.model
-                logger.info(f"Cached Whisper {self.model_size} model for reuse")
-            
-            logger.info(f"Successfully loaded Whisper {self.model_size} model on {self.device}")
+            logger.info(f"Successfully loaded Whisper {self.model_size} model")
             return True
 
         except Exception as e:
             logger.error(f"Error loading Whisper model: {str(e)}")
+            
+            # Cleanup GPU memory on failure
+            if GPU_OPTIMIZATION_AVAILABLE:
+                cleanup_gpu_memory()
+            
             return False
 
     @classmethod
@@ -132,7 +155,7 @@ class WhisperTranscriber:
         verbose: bool = False
     ) -> Dict:
         """
-        Transcribe audio file using Whisper
+        Transcribe audio file using Whisper with GPU optimization
 
         Args:
             audio_file: Path to audio file
@@ -150,6 +173,68 @@ class WhisperTranscriber:
                 'filename': str(audio_file)
             }
 
+        # Use GPU memory context if available
+        if GPU_OPTIMIZATION_AVAILABLE and hasattr(self, '_optimization_settings'):
+            device = self._optimization_settings.get("device", "cpu")
+            if device != "cpu":
+                return self._transcribe_with_gpu_context(audio_file, language, verbose)
+        
+        # Fallback to regular transcription
+        return self._transcribe_regular(audio_file, language, verbose)
+    
+    def _transcribe_with_gpu_context(
+        self,
+        audio_file: Path,
+        language: str,
+        verbose: bool
+    ) -> Dict:
+        """
+        Transcribe with GPU memory management context
+        
+        Args:
+            audio_file: Path to audio file
+            language: Language code
+            verbose: Print progress information
+            
+        Returns:
+            Dictionary with transcription results
+        """
+        try:
+            with gpu_manager.gpu_memory_context():
+                # Log initial GPU memory state
+                memory_info = gpu_manager.get_memory_info()
+                logger.debug(f"GPU memory before transcription: {memory_info.get('used_mb', 0)}MB used")
+                
+                result = self._transcribe_regular(audio_file, language, verbose)
+                
+                # Log final GPU memory state
+                final_memory_info = gpu_manager.get_memory_info()
+                logger.debug(f"GPU memory after transcription: {final_memory_info.get('used_mb', 0)}MB used")
+                
+                return result
+                
+        except Exception as e:
+            logger.error(f"Error in GPU transcription context: {str(e)}")
+            # Fallback to regular transcription
+            return self._transcribe_regular(audio_file, language, verbose)
+    
+    def _transcribe_regular(
+        self,
+        audio_file: Path,
+        language: str,
+        verbose: bool
+    ) -> Dict:
+        """
+        Regular transcription implementation
+        
+        Args:
+            audio_file: Path to audio file
+            language: Language code
+            verbose: Print progress information
+            
+        Returns:
+            Dictionary with transcription results
+        """
         try:
             audio_file = Path(audio_file)
 
@@ -163,10 +248,19 @@ class WhisperTranscriber:
 
             logger.info(f"Transcribing: {audio_file.name}")
 
+            # Prepare transcription options
             options = WHISPER_OPTIONS.copy()
             options['language'] = language
             options['verbose'] = verbose
+            
+            # Apply GPU optimization settings if available
+            if hasattr(self, '_optimization_settings'):
+                settings = self._optimization_settings
+                if settings.get("fp16", False):
+                    options['fp16'] = True
+                    logger.debug("Using FP16 precision for GPU optimization")
 
+            # Perform transcription
             result = self.model.transcribe(str(audio_file), **options)
 
             segments = result.get('segments', [])
@@ -174,7 +268,8 @@ class WhisperTranscriber:
 
             logger.info(f"Transcription complete: {len(segments)} segments, {len(text)} characters")
 
-            return {
+            # Prepare result with optimization info
+            transcription_result = {
                 'success': True,
                 'filename': audio_file.name,
                 'language': language,
@@ -183,9 +278,24 @@ class WhisperTranscriber:
                 'duration': result.get('duration', 0),
                 'language_detected': result.get('language', language)
             }
+            
+            # Add GPU optimization info if available
+            if hasattr(self, '_optimization_settings'):
+                transcription_result['optimization'] = {
+                    'device': self._optimization_settings.get('device', 'cpu'),
+                    'fp16': self._optimization_settings.get('fp16', False),
+                    'gpu_optimized': self._optimization_settings.get('device', 'cpu') != 'cpu'
+                }
+
+            return transcription_result
 
         except Exception as e:
             logger.error(f"Error transcribing {audio_file.name}: {str(e)}")
+            
+            # Cleanup GPU memory on error
+            if GPU_OPTIMIZATION_AVAILABLE:
+                cleanup_gpu_memory()
+            
             return {
                 'success': False,
                 'message': f'Transcription error: {str(e)}',
@@ -303,6 +413,85 @@ class WhisperTranscriber:
         except Exception as e:
             logger.error(f"Error changing model: {str(e)}")
             return False
+    
+    def get_gpu_performance_info(self) -> Dict:
+        """
+        Get GPU performance information for the transcriber
+        
+        Returns:
+            Dictionary with GPU performance statistics
+        """
+        if not GPU_OPTIMIZATION_AVAILABLE:
+            return {
+                "gpu_optimization_available": False,
+                "message": "GPU optimization module not available"
+            }
+        
+        performance_info = {
+            "gpu_optimization_available": True,
+            "gpu_available": is_gpu_available(),
+            "optimal_device": get_optimal_device(),
+            "model_size": self.model_size,
+            "model_loaded": self.model is not None
+        }
+        
+        # Add optimization settings if available
+        if hasattr(self, '_optimization_settings'):
+            performance_info["optimization_settings"] = self._optimization_settings
+        
+        # Add GPU statistics if available
+        if is_gpu_available():
+            performance_info["gpu_stats"] = gpu_manager.get_performance_stats()
+            performance_info["memory_info"] = gpu_manager.get_memory_info()
+        
+        return performance_info
+    
+    def cleanup_gpu_resources(self) -> None:
+        """
+        Clean up GPU resources used by the transcriber
+        """
+        if GPU_OPTIMIZATION_AVAILABLE:
+            cleanup_gpu_memory()
+            logger.info("GPU resources cleaned up")
+        else:
+            logger.debug("GPU optimization not available - no cleanup needed")
+    
+    def monitor_transcription_performance(
+        self,
+        audio_file: Path,
+        language: str = "af",
+        duration_seconds: float = 1.0
+    ) -> Dict:
+        """
+        Monitor GPU performance during transcription
+        
+        Args:
+            audio_file: Path to audio file
+            language: Language code
+            duration_seconds: Monitoring duration
+            
+        Returns:
+            Dictionary with performance monitoring results
+        """
+        if not GPU_OPTIMIZATION_AVAILABLE or not is_gpu_available():
+            # Perform regular transcription without monitoring
+            result = self.transcribe(audio_file, language)
+            result["performance_monitoring"] = {
+                "available": False,
+                "reason": "GPU not available or optimization disabled"
+            }
+            return result
+        
+        # Monitor GPU usage during transcription
+        monitoring_results = gpu_manager.monitor_gpu_usage(duration_seconds)
+        
+        # Perform transcription
+        transcription_result = self.transcribe(audio_file, language)
+        
+        # Combine results
+        transcription_result["performance_monitoring"] = monitoring_results
+        
+        return transcription_result
 
 
 class TranscriptionPipeline:
