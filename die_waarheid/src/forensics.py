@@ -477,6 +477,32 @@ class ForensicsEngine:
         logger.info(f"Parallel batch analysis complete: {len(results)} files processed")
         return results
 
+    def _extract_pitch_features(self) -> Tuple[float, float]:
+        """Extract pitch features (mean and standard deviation)"""
+        if self.audio_data is None:
+            return 0.0, 0.0
+        
+        f0, voiced_flag = self.extract_pitch()
+        voiced_f0 = f0[voiced_flag]
+        
+        if len(voiced_f0) == 0:
+            return 0.0, 0.0
+        
+        return float(np.mean(voiced_f0)), float(np.std(voiced_f0))
+
+    def _extract_silence_ratio(self) -> float:
+        """Extract silence ratio"""
+        return self.calculate_silence_ratio()
+
+    def _extract_intensity_features(self) -> float:
+        """Extract intensity features"""
+        intensity_data = self.calculate_intensity()
+        return intensity_data.get('max', 0.0)
+
+    def _extract_spectral_features(self) -> float:
+        """Extract spectral features"""
+        return self.calculate_spectral_centroid()
+
 
 if __name__ == "__main__":
     engine = ForensicsEngine()

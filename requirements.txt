@@ -22,7 +22,7 @@ torch==2.5.1
 torchaudio==2.5.1
 torchvision==0.20.1
 torchmetrics==1.8.2
-openai-whisper==20231117
+openai-whisper==20250625
 pyannote.audio==3.1.1
 google-generativeai==0.3.2
 textblob==0.17.1
@@ -67,3 +67,6 @@ slowapi==0.1.9
 # Enhanced Configuration
 pydantic==2.5.0
 pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.36

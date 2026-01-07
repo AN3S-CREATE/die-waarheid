@@ -5,13 +5,18 @@ SQLite database with SQLAlchemy ORM for persistent storage
 
 import logging
 import os
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+from contextlib import contextmanager
+from functools import wraps
 
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, JSON, Index, func
+from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import sessionmaker, Session, joinedload, selectinload
+from sqlalchemy.pool import StaticPool, QueuePool
+from sqlalchemy.sql import text
 
 from config import TEMP_DIR
 
@@ -21,9 +26,72 @@ Base = declarative_base()
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{TEMP_DIR}/die_waarheid.db")
 
+# Database connection pool settings
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
+DB_MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "20"))
+DB_POOL_RECYCLE = int(os.getenv("DB_POOL_RECYCLE", "3600"))  # 1 hour
+DB_POOL_TIMEOUT = int(os.getenv("DB_POOL_TIMEOUT", "30"))  # 30 seconds
+
+# Query caching settings
+QUERY_CACHE_TTL = int(os.getenv("QUERY_CACHE_TTL", "300"))  # 5 minutes
+ENABLE_QUERY_CACHE = os.getenv("ENABLE_QUERY_CACHE", "true").lower() == "true"
+
+# Simple in-memory cache for query results
+_query_cache: Dict[str, Dict[str, Any]] = {}
+
+def query_cache(ttl: int = QUERY_CACHE_TTL):
+    """Decorator for caching query results"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if not ENABLE_QUERY_CACHE:
+                return func(*args, **kwargs)
+            
+            # Create cache key from function name and arguments
+            cache_key = f"{func.__name__}:{hash(str(args) + str(sorted(kwargs.items())))}"
+            
+            # Check if cached result exists and is still valid
+            if cache_key in _query_cache:
+                cached_data = _query_cache[cache_key]
+                if time.time() - cached_data['timestamp'] < ttl:
+                    logger.debug(f"Cache hit for {func.__name__}")
+                    return cached_data['result']
+                else:
+                    # Remove expired cache entry
+                    del _query_cache[cache_key]
+            
+            # Execute function and cache result
+            result = func(*args, **kwargs)
+            _query_cache[cache_key] = {
+                'result': result,
+                'timestamp': time.time()
+            }
+            logger.debug(f"Cached result for {func.__name__}")
+            return result
+        return wrapper
+    return decorator
+
+def clear_query_cache():
+    """Clear all cached query results"""
+    _query_cache.clear()
+    logger.info("Query cache cleared")
+
+def get_cache_stats() -> Dict[str, Any]:
+    """Get query cache statistics"""
+    current_time = time.time()
+    valid_entries = sum(1 for entry in _query_cache.values() 
+                       if current_time - entry['timestamp'] < QUERY_CACHE_TTL)
+    
+    return {
+        'total_entries': len(_query_cache),
+        'valid_entries': valid_entries,
+        'expired_entries': len(_query_cache) - valid_entries,
+        'cache_enabled': ENABLE_QUERY_CACHE
+    }
+
 
 class AnalysisResult(Base):
-    """Forensic analysis result storage"""
+    """Forensic analysis result storage with optimized indexes"""
     __tablename__ = "analysis_results"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -38,15 +106,22 @@ class AnalysisResult(Base):
     mfcc_variance = Column(Float)
     zero_crossing_rate = Column(Float)
     spectral_centroid = Column(Float)
-    stress_level = Column(Float)
-    stress_threshold_exceeded = Column(Boolean)
-    high_cognitive_load = Column(Boolean)
+    stress_level = Column(Float, index=True)  # Frequently queried
+    stress_threshold_exceeded = Column(Boolean, index=True)  # Frequently filtered
+    high_cognitive_load = Column(Boolean, index=True)  # Frequently filtered
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Composite indexes for common query patterns
+    __table_args__ = (
+        Index('idx_case_created', 'case_id', 'created_at'),  # Case timeline queries
+        Index('idx_case_stress', 'case_id', 'stress_level'),  # Stress analysis queries
+        Index('idx_stress_threshold', 'stress_threshold_exceeded', 'stress_level'),  # Threshold queries
+    )
+
 
 class Message(Base):
-    """WhatsApp message storage"""
+    """WhatsApp message storage with optimized indexes"""
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -54,8 +129,15 @@ class Message(Base):
     timestamp = Column(DateTime, index=True)
     sender = Column(String, index=True)
     text = Column(Text)
-    message_type = Column(String)
+    message_type = Column(String, index=True)  # Frequently filtered
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Composite indexes for common query patterns
+    __table_args__ = (
+        Index('idx_case_timestamp', 'case_id', 'timestamp'),  # Timeline queries
+        Index('idx_case_sender', 'case_id', 'sender'),  # Sender analysis queries
+        Index('idx_sender_timestamp', 'sender', 'timestamp'),  # Sender timeline queries
+    )
 
 
 class ConversationAnalysis(Base):
@@ -130,19 +212,41 @@ class DatabaseManager:
 
     def initialize(self) -> bool:
         """
-        Initialize database connection and create tables
+        Initialize database connection with pooling and create tables
 
         Returns:
             True if successful
         """
         try:
-            self.engine = create_engine(
-                self.database_url,
-                connect_args={"check_same_thread": False} if "sqlite" in self.database_url else {}
-            )
+            # Configure connection pooling based on database type
+            if "sqlite" in self.database_url:
+                # SQLite with StaticPool for thread safety
+                self.engine = create_engine(
+                    self.database_url,
+                    poolclass=StaticPool,
+                    connect_args={
+                        "check_same_thread": False,
+                        "timeout": DB_POOL_TIMEOUT
+                    },
+                    pool_pre_ping=True,
+                    echo=False
+                )
+            else:
+                # PostgreSQL/MySQL with QueuePool for production
+                self.engine = create_engine(
+                    self.database_url,
+                    poolclass=QueuePool,
+                    pool_size=DB_POOL_SIZE,
+                    max_overflow=DB_MAX_OVERFLOW,
+                    pool_recycle=DB_POOL_RECYCLE,
+                    pool_timeout=DB_POOL_TIMEOUT,
+                    pool_pre_ping=True,
+                    echo=False
+                )
+            
             self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
             Base.metadata.create_all(bind=self.engine)
-            logger.info(f"Database initialized: {self.database_url}")
+            logger.info(f"Database initialized with connection pooling: {self.database_url}")
             return True
 
         except Exception as e:
@@ -152,6 +256,19 @@ class DatabaseManager:
     def get_session(self) -> Session:
         """Get database session"""
         return self.SessionLocal()
+    
+    @contextmanager
+    def session_scope(self):
+        """Provide a transactional scope around a series of operations"""
+        session = self.SessionLocal()
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def store_analysis_result(self, case_id: str, result: dict) -> bool:
         """
@@ -287,9 +404,10 @@ class DatabaseManager:
             logger.error(f"Error storing psychological profile: {str(e)}")
             return False
 
+    @query_cache(ttl=QUERY_CACHE_TTL)
     def get_analysis_results(self, case_id: str) -> List[dict]:
         """
-        Get all analysis results for a case
+        Get all analysis results for a case with caching and optimized query
 
         Args:
             case_id: Case identifier
@@ -298,21 +416,27 @@ class DatabaseManager:
             List of analysis results
         """
         try:
-            session = self.get_session()
-            results = session.query(AnalysisResult).filter(
-                AnalysisResult.case_id == case_id
-            ).all()
-            session.close()
+            with self.session_scope() as session:
+                # Optimized query with ordering for consistent results
+                results = session.query(AnalysisResult).filter(
+                    AnalysisResult.case_id == case_id
+                ).order_by(AnalysisResult.created_at.desc()).all()
 
-            return [
-                {
-                    'filename': r.filename,
-                    'stress_level': r.stress_level,
-                    'duration': r.duration,
-                    'created_at': r.created_at.isoformat()
-                }
-                for r in results
-            ]
+                return [
+                    {
+                        'id': r.id,
+                        'filename': r.filename,
+                        'stress_level': r.stress_level,
+                        'stress_threshold_exceeded': r.stress_threshold_exceeded,
+                        'high_cognitive_load': r.high_cognitive_load,
+                        'duration': r.duration,
+                        'pitch_volatility': r.pitch_volatility,
+                        'silence_ratio': r.silence_ratio,
+                        'intensity_mean': r.intensity_mean,
+                        'created_at': r.created_at.isoformat() if r.created_at else None
+                    }
+                    for r in results
+                ]
 
         except Exception as e:
             logger.error(f"Error retrieving analysis results: {str(e)}")
@@ -357,6 +481,106 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Error retrieving case statistics: {str(e)}")
             return {}
+
+    @query_cache(ttl=600)  # Cache for 10 minutes
+    def get_high_stress_results(self, case_id: str, threshold: float = 50.0) -> List[dict]:
+        """
+        Get analysis results with high stress levels (optimized query)
+        
+        Args:
+            case_id: Case identifier
+            threshold: Stress level threshold
+            
+        Returns:
+            List of high-stress analysis results
+        """
+        try:
+            with self.session_scope() as session:
+                # Use index on stress_level for fast filtering
+                results = session.query(AnalysisResult).filter(
+                    AnalysisResult.case_id == case_id,
+                    AnalysisResult.stress_level >= threshold
+                ).order_by(AnalysisResult.stress_level.desc()).all()
+                
+                return [
+                    {
+                        'filename': r.filename,
+                        'stress_level': r.stress_level,
+                        'duration': r.duration,
+                        'created_at': r.created_at.isoformat() if r.created_at else None
+                    }
+                    for r in results
+                ]
+        except Exception as e:
+            logger.error(f"Error retrieving high stress results: {str(e)}")
+            return []
+
+    @query_cache(ttl=300)  # Cache for 5 minutes
+    def get_conversation_timeline(self, case_id: str, limit: int = 100) -> List[dict]:
+        """
+        Get conversation timeline with optimized query using composite index
+        
+        Args:
+            case_id: Case identifier
+            limit: Maximum number of messages to return
+            
+        Returns:
+            List of messages in chronological order
+        """
+        try:
+            with self.session_scope() as session:
+                # Use composite index idx_case_timestamp for fast timeline queries
+                messages = session.query(Message).filter(
+                    Message.case_id == case_id
+                ).order_by(Message.timestamp.asc()).limit(limit).all()
+                
+                return [
+                    {
+                        'id': m.id,
+                        'timestamp': m.timestamp.isoformat() if m.timestamp else None,
+                        'sender': m.sender,
+                        'text': m.text,
+                        'message_type': m.message_type
+                    }
+                    for m in messages
+                ]
+        except Exception as e:
+            logger.error(f"Error retrieving conversation timeline: {str(e)}")
+            return []
+
+    def get_query_performance_stats(self) -> Dict[str, Any]:
+        """
+        Get database query performance statistics
+        
+        Returns:
+            Dictionary with performance metrics
+        """
+        try:
+            with self.session_scope() as session:
+                # Get table row counts for performance monitoring
+                analysis_count = session.query(func.count(AnalysisResult.id)).scalar()
+                message_count = session.query(func.count(Message.id)).scalar()
+                
+                # Get cache statistics
+                cache_stats = get_cache_stats()
+                
+                return {
+                    'database_url': self.database_url,
+                    'analysis_results_count': analysis_count,
+                    'messages_count': message_count,
+                    'cache_stats': cache_stats,
+                    'pool_size': DB_POOL_SIZE,
+                    'max_overflow': DB_MAX_OVERFLOW,
+                    'pool_timeout': DB_POOL_TIMEOUT
+                }
+        except Exception as e:
+            logger.error(f"Error retrieving performance stats: {str(e)}")
+            return {'error': str(e)}
+
+    def clear_cache(self):
+        """Clear query cache manually"""
+        clear_query_cache()
+        logger.info("Database query cache cleared")
 
     def close(self):
         """Close database connection"""
