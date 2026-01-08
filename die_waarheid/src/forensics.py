@@ -323,42 +323,42 @@ class ForensicsEngine:
         if self.audio_data is None:
             return 0.0
 
-        with memory_managed_operation("calculate_silence_ratio"):
-            try:
-                # Check cache first
-                cache_key = f"silence_{hash(self.audio_data.tobytes())}"
-                if cache_key in self._analysis_cache:
-                    logger.debug("Using cached silence ratio")
-                    return self._analysis_cache[cache_key]
+with memory_managed_operation("calculate_silence_ratio"):
+    try:
+        # Check cache first
+        cache_key = f"silence_{hash(self.audio_data.tobytes())}"
+        if cache_key in self._analysis_cache:
+            logger.debug("Using cached silence ratio")
+            return self._analysis_cache[cache_key]
 
-                S = librosa.feature.melspectrogram(
-                    y=self.audio_data,
-                    sr=self.sample_rate
-                )
-                S_db = librosa.power_to_db(S, ref=np.max)
-                
-                # Optimize memory usage
-                S_db = optimize_array_memory(S_db)
-                
-                threshold = np.percentile(S_db, 10)
-                silent_frames = np.sum(np.mean(S_db, axis=0) < threshold)
-                total_frames = S_db.shape[1]
-                
-                silence_ratio = silent_frames / total_frames if total_frames > 0 else 0.0
-                
-                # Cache result
-                self._analysis_cache[cache_key] = float(silence_ratio)
-                
-                # Cleanup if needed
-                if self._should_cleanup():
-                    self._cleanup_cache()
-                
-                logger.debug(f"Silence ratio: {silence_ratio:.2f}")
-                return float(silence_ratio)
+        S = librosa.feature.melspectrogram(
+            y=self.audio_data,
+            sr=self.sample_rate
+        )
+        S_db = librosa.power_to_db(S, ref=np.max)
 
-        except Exception as e:
-            logger.error(f"Error calculating silence ratio: {str(e)}")
-            return 0.0
+        # Optimize memory usage
+        S_db = optimize_array_memory(S_db)
+
+        threshold = np.percentile(S_db, 10)
+        silent_frames = np.sum(np.mean(S_db, axis=0) < threshold)
+        total_frames = S_db.shape[1]
+
+        silence_ratio = silent_frames / total_frames if total_frames > 0 else 0.0
+
+        # Cache result
+        self._analysis_cache[cache_key] = float(silence_ratio)
+
+        # Cleanup if needed
+        if self._should_cleanup():
+            self._cleanup_cache()
+
+        logger.debug(f"Silence ratio: {silence_ratio:.2f}")
+        return float(silence_ratio)
+
+    except Exception as e:
+        logger.error(f"Error calculating silence ratio: {str(e)}")
+        return 0.0
 
     def calculate_intensity(self) -> Dict[str, float]:
         """
