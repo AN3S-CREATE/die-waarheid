@@ -5,11 +5,13 @@ Parses WhatsApp exports and extracts structured message data
 
 import logging
 import re
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
 import pandas as pd
+import aiofiles
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,20 @@ class WhatsAppParser:
 
     def parse_file(self, file_path: Path) -> Tuple[bool, str]:
         """
-        Parse WhatsApp export file
+        Parse WhatsApp export file (synchronous version)
+
+        Args:
+            file_path: Path to WhatsApp export text file
+
+        Returns:
+            Tuple of (success: bool, message: str)
+        """
+        # Run async version in sync context
+        return asyncio.run(self.parse_file_async(file_path))
+
+    async def parse_file_async(self, file_path: Path) -> Tuple[bool, str]:
+        """
+        Parse WhatsApp export file asynchronously
 
         Args:
             file_path: Path to WhatsApp export text file
@@ -62,8 +77,9 @@ class WhatsAppParser:
                 logger.error(f"File not found: {file_path}")
                 return False, f"File not found: {file_path}"
 
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
+            # Use aiofiles for async file reading
+            async with aiofiles.open(file_path, 'r', encoding='utf-8') as f:
+                content = await f.read()
 
             self.messages = []
             self.participants = set()
@@ -71,11 +87,16 @@ class WhatsAppParser:
             lines = content.split('\n')
             current_message = None
 
-            for line in lines:
-                if not line.strip():
-                    continue
+            # Process lines in batches to avoid blocking
+            batch_size = 1000
+            for i in range(0, len(lines), batch_size):
+                batch = lines[i:i + batch_size]
+                
+                for line in batch:
+                    if not line.strip():
+                        continue
 
-                parsed = self._parse_line(line)
+                    parsed = self._parse_line(line)
 
                 if parsed and parsed.get('is_new_message'):
                     if current_message:

@@ -4,10 +4,13 @@ Handles audio transcription with Afrikaans language support
 """
 
 import logging
+import os
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import whisper
+import torch
 
 from config import (
     WHISPER_MODEL_SIZE,
@@ -29,33 +32,24 @@ except ImportError:
     logger.warning("GPU optimization module not available, using CPU mode")
     GPU_OPTIMIZATION_AVAILABLE = False
 
-# Import model validation features
-try:
-    from src.model_validator import (
-        validate_model,
-        get_model_validation_status,
-        get_all_models_validation_status,
-        model_validator
-    )
-    MODEL_VALIDATION_AVAILABLE = True
-except ImportError:
-    logger.warning("Model validation module not available, using basic validation")
-    MODEL_VALIDATION_AVAILABLE = False
-
 logger = logging.getLogger(__name__)
 
 
 class WhisperTranscriber:
     """
-    Whisper-based transcription engine
+    Whisper-based transcription engine with model caching
     Supports multiple languages with Afrikaans optimization
     """
 
     AVAILABLE_MODELS = ["tiny", "base", "small", "medium", "large"]
+    
+    # Class-level model cache to prevent reloading
+    _model_cache = {}
+    _cache_lock = threading.Lock()
 
     def __init__(self, model_size: str = WHISPER_MODEL_SIZE):
         """
-        Initialize Whisper transcriber
+        Initialize Whisper transcriber with model caching
 
         Args:
             model_size: Model size (tiny, base, small, medium, large)
@@ -66,33 +60,37 @@ class WhisperTranscriber:
 
         self.model_size = model_size
         self.model = None
+        self.device = self._get_optimal_device()
         self.load_model()
+
+    @staticmethod
+    def _get_optimal_device() -> str:
+        """
+        Determine optimal device for model inference
+        
+        Returns:
+            Device string ('cuda', 'mps', or 'cpu')
+        """
+        Load Whisper model with GPU optimization
 
     def load_model(self) -> bool:
         """
-        Load Whisper model with validation and GPU optimization
-
+        Load Whisper model with caching to prevent reloading
+        
         Returns:
             True if model loaded successfully, False otherwise
         """
+        cache_key = f"{self.model_size}_{self.device}"
+        
+        # Check if model is already cached
+        with self._cache_lock:
+            if cache_key in self._model_cache:
+                self.model = self._model_cache[cache_key]
+                logger.info(f"Using cached Whisper {self.model_size} model on {self.device}")
+                return True
+        
         try:
             logger.info(f"Loading Whisper {self.model_size} model...")
-            
-            # Validate model before loading if validation is available
-            if MODEL_VALIDATION_AVAILABLE:
-                logger.info(f"Validating model {self.model_size} before loading...")
-                validation_result = validate_model(self.model_size)
-                
-                if not validation_result.is_valid:
-                    logger.error(f"Model validation failed for {self.model_size}: {validation_result.errors}")
-                    self._validation_result = validation_result
-                    return False
-                else:
-                    logger.info(f"Model {self.model_size} validation passed")
-                    self._validation_result = validation_result
-            else:
-                logger.debug("Model validation not available, proceeding with basic loading")
-                self._validation_result = None
             
             # Get GPU optimization settings if available
             if GPU_OPTIMIZATION_AVAILABLE:
@@ -122,19 +120,6 @@ class WhisperTranscriber:
                     "num_workers": 1
                 }
             
-            # Post-loading validation if available
-            if MODEL_VALIDATION_AVAILABLE and self.model is not None:
-                logger.debug("Performing post-loading model validation...")
-                try:
-                    # Quick performance validation
-                    performance_result = model_validator.validate_model_performance(self.model_size)
-                    if performance_result.get("status") == "success":
-                        logger.info(f"Model {self.model_size} post-loading validation passed")
-                    else:
-                        logger.warning(f"Model {self.model_size} post-loading validation warning: {performance_result.get('error', 'Unknown issue')}")
-                except Exception as e:
-                    logger.warning(f"Post-loading validation error: {e}")
-            
             logger.info(f"Successfully loaded Whisper {self.model_size} model")
             return True
 
@@ -146,6 +131,22 @@ class WhisperTranscriber:
                 cleanup_gpu_memory()
             
             return False
+
+    @classmethod
+    def clear_model_cache(cls):
+        """Clear all cached models to free memory"""
+        with cls._cache_lock:
+            cls._model_cache.clear()
+            logger.info("Cleared Whisper model cache")
+
+    @classmethod
+    def get_cache_info(cls) -> Dict:
+        """Get information about cached models"""
+        with cls._cache_lock:
+            return {
+                "cached_models": list(cls._model_cache.keys()),
+                "cache_size": len(cls._model_cache)
+            }
 
     def transcribe(
         self,
@@ -491,120 +492,6 @@ class WhisperTranscriber:
         transcription_result["performance_monitoring"] = monitoring_results
         
         return transcription_result
-    
-    def get_model_validation_info(self) -> Dict[str, Any]:
-        """
-        Get model validation information
-        
-        Returns:
-            Dictionary with model validation details
-        """
-        if not MODEL_VALIDATION_AVAILABLE:
-            return {
-                "model_validation_available": False,
-                "message": "Model validation module not available"
-            }
-        
-        validation_info = {
-            "model_validation_available": True,
-            "model_size": self.model_size,
-            "model_loaded": self.model is not None,
-            "validation_status": get_model_validation_status(self.model_size)
-        }
-        
-        # Add validation result if available
-        if hasattr(self, '_validation_result') and self._validation_result:
-            validation_info["last_validation"] = {
-                "is_valid": self._validation_result.is_valid,
-                "checksum_valid": self._validation_result.checksum_valid,
-                "version_compatible": self._validation_result.version_compatible,
-                "file_exists": self._validation_result.file_exists,
-                "file_readable": self._validation_result.file_readable,
-                "size_valid": self._validation_result.size_valid,
-                "corruption_detected": self._validation_result.corruption_detected,
-                "security_valid": self._validation_result.security_valid,
-                "performance_valid": self._validation_result.performance_valid,
-                "validation_time": self._validation_result.validation_time.isoformat(),
-                "errors": self._validation_result.errors,
-                "warnings": self._validation_result.warnings
-            }
-        
-        return validation_info
-    
-    def validate_current_model(self, force: bool = False) -> Dict[str, Any]:
-        """
-        Validate the currently loaded model
-        
-        Args:
-            force: Force validation even if recently validated
-            
-        Returns:
-            Validation result dictionary
-        """
-        if not MODEL_VALIDATION_AVAILABLE:
-            return {
-                "model_validation_available": False,
-                "message": "Model validation module not available"
-            }
-        
-        try:
-            validation_result = validate_model(self.model_size, force=force)
-            self._validation_result = validation_result
-            
-            return {
-                "model_validation_available": True,
-                "model_name": self.model_size,
-                "validation_result": {
-                    "is_valid": validation_result.is_valid,
-                    "checksum_valid": validation_result.checksum_valid,
-                    "version_compatible": validation_result.version_compatible,
-                    "file_exists": validation_result.file_exists,
-                    "file_readable": validation_result.file_readable,
-                    "size_valid": validation_result.size_valid,
-                    "corruption_detected": validation_result.corruption_detected,
-                    "security_valid": validation_result.security_valid,
-                    "performance_valid": validation_result.performance_valid,
-                    "validation_time": validation_result.validation_time.isoformat(),
-                    "errors": validation_result.errors,
-                    "warnings": validation_result.warnings,
-                    "details": validation_result.details
-                }
-            }
-        
-        except Exception as e:
-            logger.error(f"Error validating model {self.model_size}: {e}")
-            return {
-                "model_validation_available": True,
-                "model_name": self.model_size,
-                "validation_error": str(e)
-            }
-    
-    def get_all_models_validation_info(self) -> Dict[str, Any]:
-        """
-        Get validation information for all available models
-        
-        Returns:
-            Dictionary with validation info for all models
-        """
-        if not MODEL_VALIDATION_AVAILABLE:
-            return {
-                "model_validation_available": False,
-                "message": "Model validation module not available"
-            }
-        
-        try:
-            return {
-                "model_validation_available": True,
-                "current_model": self.model_size,
-                "all_models_status": get_all_models_validation_status()
-            }
-        
-        except Exception as e:
-            logger.error(f"Error getting all models validation info: {e}")
-            return {
-                "model_validation_available": True,
-                "error": str(e)
-            }
 
 
 class TranscriptionPipeline:

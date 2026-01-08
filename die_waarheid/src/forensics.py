@@ -1,5 +1,4 @@
-"""
-Audio Forensics Engine for Die Waarheid
+""" Audio Forensics Engine for Die Waarheid
 Analyzes voice notes for bio-signal detection and stress indicators
 """
 
@@ -336,29 +335,29 @@ class ForensicsEngine:
                     sr=self.sample_rate
                 )
                 S_db = librosa.power_to_db(S, ref=np.max)
-                
+
                 # Optimize memory usage
                 S_db = optimize_array_memory(S_db)
-                
+
                 threshold = np.percentile(S_db, 10)
                 silent_frames = np.sum(np.mean(S_db, axis=0) < threshold)
                 total_frames = S_db.shape[1]
-                
+
                 silence_ratio = silent_frames / total_frames if total_frames > 0 else 0.0
-                
+
                 # Cache result
                 self._analysis_cache[cache_key] = float(silence_ratio)
-                
+
                 # Cleanup if needed
                 if self._should_cleanup():
                     self._cleanup_cache()
-                
+
                 logger.debug(f"Silence ratio: {silence_ratio:.2f}")
                 return float(silence_ratio)
 
-        except Exception as e:
-            logger.error(f"Error calculating silence ratio: {str(e)}")
-            return 0.0
+            except Exception as e:
+                logger.error(f"Error calculating silence ratio: {str(e)}")
+                return 0.0
 
     def calculate_intensity(self) -> Dict[str, float]:
         """
@@ -687,40 +686,6 @@ class ForensicsEngine:
             return 0.0, 0.0
         
         return float(np.mean(voiced_f0)), float(np.std(voiced_f0))
-
-    def get_memory_statistics(self) -> Dict[str, Any]:
-        """
-        Get comprehensive memory usage statistics for this engine instance
-        
-        Returns:
-            Dictionary with memory statistics
-        """
-        current_memory = get_memory_usage()
-        global_stats = get_memory_stats()
-        
-        return {
-            'engine_stats': {
-                'operation_count': self._operation_count,
-                'cache_size': len(self._analysis_cache),
-                'max_cache_size': self._max_cache_size,
-                'audio_buffer_refs': len(self._audio_buffer_refs),
-                'last_cleanup': self._last_cleanup,
-                'audio_loaded': self.audio_data is not None,
-                'audio_memory_mb': (self.audio_data.nbytes / 1024 / 1024) if self.audio_data is not None else 0
-            },
-            'global_stats': global_stats,
-            'current_memory_mb': current_memory
-        }
-
-    def cleanup_all(self):
-        """
-        Perform comprehensive cleanup of all cached data and audio buffers
-        """
-        self._cleanup_audio_data()
-        self._analysis_cache.clear()
-        self._audio_buffer_refs.clear()
-        gc.collect()
-        logger.info("Performed comprehensive cleanup of ForensicsEngine")
 
     def _extract_silence_ratio(self) -> float:
         """Extract silence ratio"""
