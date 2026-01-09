@@ -56,12 +56,13 @@ class FreeAIAnalyzer:
         """Initialize the free AI analyzer"""
         self.configured = False
         self.models = {}
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
         if not TRANSFORMERS_AVAILABLE:
             logger.warning("Transformers not available. Install with: pip install transformers torch")
             return
             
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+
         try:
             self._initialize_models()
             self.configured = True
