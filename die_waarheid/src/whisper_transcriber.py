@@ -18,6 +18,8 @@ from config import (
     TEMP_DIR
 )
 
+logger = logging.getLogger(__name__)
+
 # Import GPU optimization features
 try:
     from src.gpu_manager import (
@@ -31,8 +33,6 @@ try:
 except ImportError:
     logger.warning("GPU optimization module not available, using CPU mode")
     GPU_OPTIMIZATION_AVAILABLE = False
-
-logger = logging.getLogger(__name__)
 
 
 class WhisperTranscriber:
@@ -71,7 +71,16 @@ class WhisperTranscriber:
         Returns:
             Device string ('cuda', 'mps', or 'cpu')
         """
-        Load Whisper model with GPU optimization
+        if GPU_OPTIMIZATION_AVAILABLE:
+            return get_optimal_device()
+
+        if torch.cuda.is_available():
+            return "cuda"
+
+        if torch.backends.mps.is_available():
+            return "mps"
+
+        return "cpu"
 
     def load_model(self) -> bool:
         """

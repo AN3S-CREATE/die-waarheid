@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Users, Upload, CheckCircle, AlertCircle } from 'lucide-react';
 import { apiService, type SpeakerProfile } from '@/services/api';
+import { useInvestigation } from '@/store/InvestigationContext';
 
 export function SpeakerTraining() {
   const [speakers, setSpeakers] = useState<SpeakerProfile[]>([]);
@@ -12,6 +13,7 @@ export function SpeakerTraining() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [trainingFile, setTrainingFile] = useState<{ [key: string]: File | null }>({});
   const [trainingStatus, setTrainingStatus] = useState<{ [key: string]: string }>({});
+  const { investigation, setInvestigation } = useInvestigation();
 
   const loadSpeakers = async () => {
     const profiles = await apiService.getSpeakerProfiles();
@@ -21,6 +23,30 @@ export function SpeakerTraining() {
   useEffect(() => {
     loadSpeakers();
   }, []);
+
+  useEffect(() => {
+    if (investigation || speakers.length < 2) {
+      return;
+    }
+
+    const participantAProfile = speakers.find((speaker) => speaker.assigned_role === 'participant_a');
+    const participantBProfile = speakers.find((speaker) => speaker.assigned_role === 'participant_b');
+
+    if (participantAProfile && participantBProfile) {
+      setInvestigation({
+        id: 'MAIN_CASE',
+        participantA: participantAProfile.primary_username,
+        participantB: participantBProfile.primary_username,
+        voiceNotes: [],
+        timeline: [],
+        patterns: {
+          deceptionCount: 0,
+          highStressCount: 0,
+          contradictions: [],
+        },
+      });
+    }
+  }, [investigation, speakers, setInvestigation]);
 
   const handleInitialize = async () => {
     if (!participantA || !participantB) {
@@ -32,6 +58,18 @@ export function SpeakerTraining() {
     const result = await apiService.initializeSpeakers(participantA, participantB);
     
     if (result.success) {
+      setInvestigation({
+        id: 'MAIN_CASE',
+        participantA,
+        participantB,
+        voiceNotes: [],
+        timeline: [],
+        patterns: {
+          deceptionCount: 0,
+          highStressCount: 0,
+          contradictions: [],
+        },
+      });
       await loadSpeakers();
     } else {
       alert(`Initialization failed: ${result.message}`);

@@ -591,36 +591,36 @@ Return only valid JSON."""
                         max_output_tokens=GEMINI_MAX_TOKENS
                     )
                 )
+                
+                result_text = response.text.strip()
+                
+                if result_text.startswith('```json'):
+                    result_text = result_text[7:]
+                if result_text.startswith('```'):
+                    result_text = result_text[3:]
+                if result_text.endswith('```'):
+                    result_text = result_text[:-3]
 
-            result_text = response.text.strip()
-            
-            if result_text.startswith('```json'):
-                result_text = result_text[7:]
-            if result_text.startswith('```'):
-                result_text = result_text[3:]
-            if result_text.endswith('```'):
-                result_text = result_text[:-3]
+                import json
+                analysis = json.loads(result_text)
 
-            import json
-            analysis = json.loads(result_text)
+                return {
+                    'success': True,
+                    'total_messages': len(messages),
+                    'overall_tone': analysis.get('overall_tone', 'unknown'),
+                    'power_dynamics': analysis.get('power_dynamics', 'unknown'),
+                    'communication_style': analysis.get('communication_style', 'unknown'),
+                    'conflict_level': float(analysis.get('conflict_level', 0)),
+                    'manipulation_indicators': analysis.get('manipulation_indicators', []),
+                    'summary': analysis.get('summary', '')
+                }
 
-            return {
-                'success': True,
-                'total_messages': len(messages),
-                'overall_tone': analysis.get('overall_tone', 'unknown'),
-                'power_dynamics': analysis.get('power_dynamics', 'unknown'),
-                'communication_style': analysis.get('communication_style', 'unknown'),
-                'conflict_level': float(analysis.get('conflict_level', 0)),
-                'manipulation_indicators': analysis.get('manipulation_indicators', []),
-                'summary': analysis.get('summary', '')
-            }
-
-        except Exception as e:
-            logger.error(f"Error analyzing conversation: {str(e)}")
-            return {
-                'success': False,
-                'message': f'Analysis error: {str(e)}'
-            }
+            except Exception as e:
+                logger.error(f"Error analyzing conversation: {str(e)}")
+                return {
+                    'success': False,
+                    'message': f'Analysis error: {str(e)}'
+                }
 
     @rate_limit(calls_per_minute=30)
     @retry_with_backoff(max_attempts=3, base_delay=2.0)
@@ -768,35 +768,35 @@ Return only valid JSON."""
                     )
                 )
 
-            result_text = response.text.strip()
-            
-            if result_text.startswith('```json'):
-                result_text = result_text[7:]
-            if result_text.startswith('```'):
-                result_text = result_text[3:]
-            if result_text.endswith('```'):
-                result_text = result_text[:-3]
+                result_text = response.text.strip()
+                
+                if result_text.startswith('```json'):
+                    result_text = result_text[7:]
+                if result_text.startswith('```'):
+                    result_text = result_text[3:]
+                if result_text.endswith('```'):
+                    result_text = result_text[:-3]
 
-            import json
-            profile = json.loads(result_text)
+                import json
+                profile = json.loads(result_text)
 
-            return {
-                'success': True,
-                'personality_traits': profile.get('personality_traits', []),
-                'communication_patterns': profile.get('communication_patterns', []),
-                'emotional_regulation': profile.get('emotional_regulation', 'unknown'),
-                'stress_indicators': profile.get('stress_indicators', []),
-                'relationship_dynamics': profile.get('relationship_dynamics', ''),
-                'risk_assessment': profile.get('risk_assessment', 'unknown'),
-                'recommendations': profile.get('recommendations', [])
-            }
+                return {
+                    'success': True,
+                    'personality_traits': profile.get('personality_traits', []),
+                    'communication_patterns': profile.get('communication_patterns', []),
+                    'emotional_regulation': profile.get('emotional_regulation', 'unknown'),
+                    'stress_indicators': profile.get('stress_indicators', []),
+                    'relationship_dynamics': profile.get('relationship_dynamics', ''),
+                    'risk_assessment': profile.get('risk_assessment', 'unknown'),
+                    'recommendations': profile.get('recommendations', [])
+                }
 
-        except Exception as e:
-            logger.error(f"Error generating profile: {str(e)}")
-            return {
-                'success': False,
-                'message': f'Profile generation error: {str(e)}'
-            }
+            except Exception as e:
+                logger.error(f"Error generating profile: {str(e)}")
+                return {
+                    'success': False,
+                    'message': f'Profile generation error: {str(e)}'
+                }
 
     def calculate_trust_score(
         self,

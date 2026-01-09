@@ -144,7 +144,6 @@ export function Transcribe() {
                 <option value="af">Afrikaans</option>
                 <option value="en">English</option>
                 <option value="nl">Dutch</option>
-                <option value="auto">Auto-detect</option>
               </select>
             </div>
 
@@ -159,7 +158,6 @@ export function Transcribe() {
                 className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
               >
                 <option value="tiny">Tiny (Fastest)</option>
-                <option value="base">Base (Fast)</option>
                 <option value="small">Small (Balanced)</option>
                 <option value="medium">Medium (Accurate)</option>
                 <option value="large">Large (Most Accurate)</option>

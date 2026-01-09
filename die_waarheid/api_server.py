@@ -19,6 +19,10 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Import advanced security features
 try:
     from src.security import (
@@ -37,10 +41,6 @@ from src.whisper_transcriber import WhisperTranscriber
 from src.forensics import ForensicsEngine
 from src.speaker_identification import SpeakerIdentificationSystem
 from config import AUDIO_DIR, DATA_DIR
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
