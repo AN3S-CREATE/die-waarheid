@@ -154,7 +154,7 @@ export function AudioAnalysis() {
                       <span className="font-semibold text-gray-900">Silence Ratio</span>
                     </div>
                     <div className="text-3xl font-bold text-purple-600">
-                      {(result.silence_ratio || 0 * 100).toFixed(1)}%
+                      {((result.silence_ratio ?? 0) * 100).toFixed(1)}%
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
                       Percentage of silent segments
@@ -182,7 +182,7 @@ export function AudioAnalysis() {
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="text-sm text-gray-600 mb-1">Max Intensity</div>
                   <div className="text-2xl font-bold text-gray-900">
-                    {result.intensity?.max.toFixed(2)} dB
+                    {result.intensity?.max?.toFixed(2) ?? 'N/A'} dB
                   </div>
                 </div>
 

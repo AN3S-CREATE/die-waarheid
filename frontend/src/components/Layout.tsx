@@ -1,11 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Users, Home } from 'lucide-react';
+import { Home, Users, Mic, FileAudio, MessageSquare, BarChart3 } from 'lucide-react';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
   const navItems = [
-    { path: '/', icon: Home, label: 'Investigation Dashboard' },
+    { path: '/', icon: Home, label: 'Home' },
+    { path: '/dashboard', icon: BarChart3, label: 'Investigation Dashboard' },
+    { path: '/transcribe', icon: Mic, label: 'Transcription' },
+    { path: '/audio-analysis', icon: FileAudio, label: 'Audio Analysis' },
+    { path: '/chat-analysis', icon: MessageSquare, label: 'Chat Analysis' },
     { path: '/speaker-training', icon: Users, label: 'Speaker Profiles' },
   ];
 

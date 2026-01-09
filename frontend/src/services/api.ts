@@ -1,4 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_KEY = import.meta.env.VITE_API_KEY;
 
 export interface TranscriptionRequest {
   file: File;
@@ -40,6 +41,14 @@ export interface SpeakerProfile {
 }
 
 class ApiService {
+  private buildHeaders(headers?: HeadersInit) {
+    const merged = new Headers(headers);
+    if (API_KEY) {
+      merged.set('Authorization', `Bearer ${API_KEY}`);
+    }
+    return merged;
+  }
+
   private async fetchWithTimeout(url: string, options: RequestInit, timeout = 30000) {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -47,6 +56,7 @@ class ApiService {
     try {
       const response = await fetch(url, {
         ...options,
+        headers: this.buildHeaders(options.headers),
         signal: controller.signal,
       });
       clearTimeout(id);
