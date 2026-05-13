@@ -334,7 +334,17 @@ RESPOND IN JSON:
                     issues.append(f"Ambiguous words: {', '.join(parsed['ambiguous_words'])}")
 
         except Exception as e:
-            issues.append(f"Gemini verification error: {str(e)}")
+            error_str = str(e)
+            error_lower = error_str.lower()
+            
+            # Check for 410 status code (deprecated/gone endpoint)
+            if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
+                logger.error(f"Gemini API endpoint deprecated (410): {e}")
+                logger.warning("The Gemini model may be deprecated. Consider updating GEMINI_MODEL in config.py")
+            elif '429' in error_str or 'quota' in error_lower:
+                logger.warning(f"Gemini API quota exceeded: {e}")
+            else:
+                issues.append(f"Gemini verification error: {error_str}")
             confidence = 0.5
 
         return VerificationCheck(

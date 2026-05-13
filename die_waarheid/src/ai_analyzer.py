@@ -290,10 +290,39 @@ Be concise and return only valid JSON."""
                     'ai_system': 'gemini'
                 }
             except Exception as e:
+                error_str = str(e)
+                error_lower = error_str.lower()
+                
+                # Check for 410 status code (deprecated/gone endpoint)
+                if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
+                    logger.error(f"Gemini API endpoint deprecated (410): {e}")
+                    logger.warning("The Gemini model may be deprecated. Please update GEMINI_MODEL in config.py")
+                    logger.info("Falling back to pattern-based analysis")
+                    # Return a special error type for quota exceeded
+                    return {
+                        'success': False,
+                        'error': f'Gemini model deprecated or unavailable: {error_str}',
+                        'error_type': 'deprecated_model',
+                        'text': text,
+                        'cached': False
+                    }
+                
+                # Check for other API errors
+                elif '429' in error_str or 'quota' in error_lower or 'rate limit' in error_lower:
+                    logger.warning(f"Gemini API quota exceeded: {e}")
+                    return {
+                        'success': False,
+                        'error': f'API quota exceeded: {error_str}',
+                        'error_type': 'quota_exceeded',
+                        'text': text,
+                        'cached': False
+                    }
+                
+                # Generic error
                 logger.error(f"Gemini analysis error: {e}")
                 return {
                     'success': False,
-                    'error': f'Gemini analysis failed: {str(e)}',
+                    'error': f'Gemini analysis failed: {error_str}',
                     'text': text,
                     'cached': False
                 }
@@ -324,9 +353,13 @@ Be concise and return only valid JSON."""
         try:
             result = self._cached_analyze(text_hash, text)
             
-            # Check if result is an error (quota exceeded, etc.)
-            if not result.get('success') and result.get('error_type') == 'quota_exceeded':
-                logger.warning("API quota exceeded, using fallback analysis")
+            # Check if result is an error (quota exceeded, deprecated model, etc.)
+            error_type = result.get('error_type')
+            if not result.get('success') and error_type in ['quota_exceeded', 'deprecated_model']:
+                if error_type == 'deprecated_model':
+                    logger.error("Gemini model deprecated/unavailable, using fallback analysis")
+                else:
+                    logger.warning("API quota exceeded, using fallback analysis")
                 return self.analyze_message_fallback(text)
             
             if result.get('cached', False):
