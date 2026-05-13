@@ -291,8 +291,8 @@ class DatabaseManager:
             "invalid": getattr(pool, 'invalid', lambda: 'N/A')(),
         }
 
-    def get_session(self) -> Session:
-        """Get database session"""
+    def get_raw_session(self) -> Session:
+        """Get raw database session (caller is responsible for commit and close)"""
         return self.SessionLocal()
     
     @contextmanager
@@ -320,26 +320,24 @@ class DatabaseManager:
             True if successful
         """
         try:
-            session = self.get_session()
-            analysis = AnalysisResult(
-                case_id=case_id,
-                filename=result.get('filename'),
-                duration=result.get('duration'),
-                pitch_volatility=result.get('pitch_volatility'),
-                silence_ratio=result.get('silence_ratio'),
-                intensity_mean=result.get('intensity', {}).get('mean'),
-                intensity_max=result.get('intensity', {}).get('max'),
-                intensity_std=result.get('intensity', {}).get('std'),
-                mfcc_variance=result.get('mfcc_variance'),
-                zero_crossing_rate=result.get('zero_crossing_rate'),
-                spectral_centroid=result.get('spectral_centroid'),
-                stress_level=result.get('stress_level'),
-                stress_threshold_exceeded=result.get('stress_threshold_exceeded'),
-                high_cognitive_load=result.get('high_cognitive_load')
-            )
-            session.add(analysis)
-            session.commit()
-            session.close()
+            with self.session_scope() as session:
+                analysis = AnalysisResult(
+                    case_id=case_id,
+                    filename=result.get('filename'),
+                    duration=result.get('duration'),
+                    pitch_volatility=result.get('pitch_volatility'),
+                    silence_ratio=result.get('silence_ratio'),
+                    intensity_mean=result.get('intensity', {}).get('mean'),
+                    intensity_max=result.get('intensity', {}).get('max'),
+                    intensity_std=result.get('intensity', {}).get('std'),
+                    mfcc_variance=result.get('mfcc_variance'),
+                    zero_crossing_rate=result.get('zero_crossing_rate'),
+                    spectral_centroid=result.get('spectral_centroid'),
+                    stress_level=result.get('stress_level'),
+                    stress_threshold_exceeded=result.get('stress_threshold_exceeded'),
+                    high_cognitive_load=result.get('high_cognitive_load')
+                )
+                session.add(analysis)
             logger.info(f"Stored analysis result for {result.get('filename')}")
             return True
 
@@ -359,17 +357,15 @@ class DatabaseManager:
             True if successful
         """
         try:
-            session = self.get_session()
-            msg = Message(
-                case_id=case_id,
-                timestamp=message.get('timestamp'),
-                sender=message.get('sender'),
-                text=message.get('text'),
-                message_type=message.get('message_type', 'text')
-            )
-            session.add(msg)
-            session.commit()
-            session.close()
+            with self.session_scope() as session:
+                msg = Message(
+                    case_id=case_id,
+                    timestamp=message.get('timestamp'),
+                    sender=message.get('sender'),
+                    text=message.get('text'),
+                    message_type=message.get('message_type', 'text')
+                )
+                session.add(msg)
             return True
 
         except Exception as e:
@@ -388,20 +384,18 @@ class DatabaseManager:
             True if successful
         """
         try:
-            session = self.get_session()
-            conv_analysis = ConversationAnalysis(
-                case_id=case_id,
-                total_messages=analysis.get('total_messages'),
-                overall_tone=analysis.get('overall_tone'),
-                power_dynamics=analysis.get('power_dynamics'),
-                communication_style=analysis.get('communication_style'),
-                conflict_level=analysis.get('conflict_level'),
-                manipulation_indicators=analysis.get('manipulation_indicators'),
-                summary=analysis.get('summary')
-            )
-            session.add(conv_analysis)
-            session.commit()
-            session.close()
+            with self.session_scope() as session:
+                conv_analysis = ConversationAnalysis(
+                    case_id=case_id,
+                    total_messages=analysis.get('total_messages'),
+                    overall_tone=analysis.get('overall_tone'),
+                    power_dynamics=analysis.get('power_dynamics'),
+                    communication_style=analysis.get('communication_style'),
+                    conflict_level=analysis.get('conflict_level'),
+                    manipulation_indicators=analysis.get('manipulation_indicators'),
+                    summary=analysis.get('summary')
+                )
+                session.add(conv_analysis)
             logger.info(f"Stored conversation analysis for case {case_id}")
             return True
 
@@ -421,20 +415,18 @@ class DatabaseManager:
             True if successful
         """
         try:
-            session = self.get_session()
-            psych_profile = PsychologicalProfile(
-                case_id=case_id,
-                personality_traits=profile.get('personality_traits'),
-                communication_patterns=profile.get('communication_patterns'),
-                emotional_regulation=profile.get('emotional_regulation'),
-                stress_indicators=profile.get('stress_indicators'),
-                relationship_dynamics=profile.get('relationship_dynamics'),
-                risk_assessment=profile.get('risk_assessment'),
-                recommendations=profile.get('recommendations')
-            )
-            session.add(psych_profile)
-            session.commit()
-            session.close()
+            with self.session_scope() as session:
+                psych_profile = PsychologicalProfile(
+                    case_id=case_id,
+                    personality_traits=profile.get('personality_traits'),
+                    communication_patterns=profile.get('communication_patterns'),
+                    emotional_regulation=profile.get('emotional_regulation'),
+                    stress_indicators=profile.get('stress_indicators'),
+                    relationship_dynamics=profile.get('relationship_dynamics'),
+                    risk_assessment=profile.get('risk_assessment'),
+                    recommendations=profile.get('recommendations')
+                )
+                session.add(psych_profile)
             logger.info(f"Stored psychological profile for case {case_id}")
             return True
 
@@ -501,10 +493,10 @@ class DatabaseManager:
                 AnalysisResult.case_id == case_id
             ).count()
 
-            avg_stress = session.query(AnalysisResult).filter(
+            avg_stress = session.query(
+                func.avg(AnalysisResult.stress_level)
+            ).filter(
                 AnalysisResult.case_id == case_id
-            ).with_entities(
-                AnalysisResult.stress_level.avg()
             ).scalar()
 
             session.close()
