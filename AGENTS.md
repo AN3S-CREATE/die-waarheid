@@ -7,7 +7,7 @@ Project "Die Waarheid": a forensic WhatsApp/audio analysis platform. Three dev s
 | Service | Port | Dev command (from repo root) | Notes |
 | --- | --- | --- | --- |
 | FastAPI backend | 8000 | `cd die_waarheid && ../venv/bin/python -m uvicorn api_server:app --host 0.0.0.0 --port 8000` | Must run from `die_waarheid/` (see caveat) |
-| React frontend | 3000 | `cd frontend && npm run dev` | Vite dev server is on **3000** (per `vite.config.ts`), not 5173 |
+| React frontend | 3000 | cd frontend && npm run dev | Vite dev server is on **3000** (per vite.config.ts), not 5173. Note: the proxy target in vite.config.ts is set to http://localhost:8001, which mismatches the backend port of 8000. |
 | Streamlit UI | 8501 | `./venv/bin/python -m streamlit run die_waarheid/app.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true` | Primary in-process UI |
 
 Python deps live in a repo-local virtualenv at `./venv` (gitignored, persisted in the VM snapshot). Always invoke Python via `./venv/bin/python`.
