@@ -38,7 +38,7 @@ class TestPipelineProcessor:
     @patch('src.pipeline_processor.ForensicsEngine')
     @patch('src.pipeline_processor.AIAnalyzer')
     @patch('src.pipeline_processor.SpeakerIdentificationSystem')
-    def test_process_voice_note_success(self, mock_speaker, mock_ai, mock_forensics, mock_whisper):
+    def test_process_voice_note_success(self, mock_speaker, mock_ai, mock_forensics, mock_whisper, temp_dir):
         """Test successful voice note processing"""
         # Setup mocks
         mock_whisper_instance = Mock()
@@ -77,7 +77,9 @@ class TestPipelineProcessor:
         processor = PipelineProcessor()
         processor.transcriber = mock_whisper_instance
         
-        result = processor.process_voice_note(Path("test.mp3"))
+        test_file = temp_dir / "test.mp3"
+        test_file.write_bytes(b"fake audio")
+        result = processor.process_voice_note(test_file)
         
         assert result['success']
         assert result['transcription'] == 'Test transcription'
@@ -87,7 +89,7 @@ class TestPipelineProcessor:
         assert len(result['errors']) == 0
 
     @patch('src.pipeline_processor.WhisperTranscriber')
-    def test_process_voice_note_transcription_failure(self, mock_whisper):
+    def test_process_voice_note_transcription_failure(self, mock_whisper, temp_dir):
         """Test handling of transcription failure"""
         mock_whisper_instance = Mock()
         mock_whisper_instance.transcribe.return_value = {
@@ -99,7 +101,9 @@ class TestPipelineProcessor:
         processor = PipelineProcessor()
         processor.transcriber = mock_whisper_instance
         
-        result = processor.process_voice_note(Path("test.mp3"))
+        test_file = temp_dir / "test.mp3"
+        test_file.write_bytes(b"fake audio")
+        result = processor.process_voice_note(test_file)
         
         assert result['success']  # Still succeeds overall
         assert "Transcription failed" in result['errors'][0]
@@ -208,29 +212,27 @@ class TestPipelineProcessor:
         assert stats['avg_stress_level'] == 30.0
         assert stats['avg_risk_score'] == 33.33
 
-    @patch('src.pipeline_processor.ThreadPoolExecutor')
-    def test_process_batch(self, mock_executor):
+    def test_process_batch(self, temp_dir):
         """Test batch processing with parallel execution"""
-        # Setup mock executor
-        mock_future = Mock()
-        mock_future.result.return_value = {
-            'success': True,
-            'filename': 'test.mp3'
-        }
-        
-        mock_executor_instance = Mock()
-        mock_executor_instance.submit.return_value = mock_future
-        mock_executor_instance.__enter__.return_value = mock_executor_instance
-        mock_executor_instance.__exit__.return_value = None
-        mock_executor.return_value = mock_executor_instance
-        
         processor = PipelineProcessor()
-        files = [Path("test1.mp3"), Path("test2.mp3")]
-        
-        results = processor.process_batch(files, max_workers=2)
-        
+        files = []
+        for name in ("test1.mp3", "test2.mp3"):
+            file_path = temp_dir / name
+            file_path.write_bytes(b"fake audio")
+            files.append(file_path)
+
+        with patch.object(
+            processor,
+            "process_voice_note",
+            side_effect=[
+                {'success': True, 'filename': 'test1.mp3'},
+                {'success': True, 'filename': 'test2.mp3'},
+            ],
+        ) as mock_process:
+            results = processor.process_batch(files, max_workers=2)
+
         assert len(results) == 2
-        mock_executor.assert_called_once_with(max_workers=2)
+        assert mock_process.call_count == 2
 
     def test_export_results(self, temp_dir):
         """Test results export to JSON"""

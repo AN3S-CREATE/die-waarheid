@@ -15,13 +15,16 @@ export function SpeakerTraining() {
   const [trainingStatus, setTrainingStatus] = useState<{ [key: string]: string }>({});
   const { investigation, setInvestigation } = useInvestigation();
 
-  const loadSpeakers = async () => {
-    const profiles = await apiService.getSpeakerProfiles();
-    setSpeakers(profiles);
-  };
-
   useEffect(() => {
-    loadSpeakers();
+    let isMounted = true;
+    void apiService.getSpeakerProfiles().then((profiles) => {
+      if (isMounted) {
+        setSpeakers(profiles);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -70,7 +73,8 @@ export function SpeakerTraining() {
           contradictions: [],
         },
       });
-      await loadSpeakers();
+      const profiles = await apiService.getSpeakerProfiles();
+      setSpeakers(profiles);
     } else {
       alert(`Initialization failed: ${result.message}`);
     }
@@ -93,7 +97,8 @@ export function SpeakerTraining() {
     
     if (result.success) {
       setTrainingStatus({ ...trainingStatus, [participantId]: 'success' });
-      await loadSpeakers();
+      const profiles = await apiService.getSpeakerProfiles();
+      setSpeakers(profiles);
       setTimeout(() => {
         setTrainingStatus({ ...trainingStatus, [participantId]: '' });
         setTrainingFile({ ...trainingFile, [participantId]: null });
