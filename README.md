@@ -19,6 +19,8 @@
 
 ## 🚀 Quick Start
 
+> **⚠️ IMPORTANT**: If you're experiencing **"Status code 410"** errors, see [BLACKBOX_CLI_FIX.md](BLACKBOX_CLI_FIX.md) for the solution. The issue has been fixed by updating to `gemini-1.5-flash` model.
+
 ### Prerequisites
 
 - **Python 3.11+** (3.11 recommended)

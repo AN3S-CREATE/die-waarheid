@@ -13,6 +13,7 @@ import tempfile
 import logging
 import os
 import secrets
+import sys
 from typing import Optional
 from pydantic import BaseModel, Field, validator
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -23,9 +24,14 @@ from slowapi.errors import RateLimitExceeded
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Ensure legacy absolute imports (config/src.*) resolve reliably.
+CURRENT_DIR = Path(__file__).resolve().parent
+if str(CURRENT_DIR) not in sys.path:
+    sys.path.insert(0, str(CURRENT_DIR))
+
 # Import advanced security features
 try:
-    from src.security import (
+    from .src.security import (
         add_security_headers,
         validate_request_security,
         sanitize_user_input,
@@ -34,13 +40,29 @@ try:
     )
     ADVANCED_SECURITY_AVAILABLE = True
 except ImportError:
-    logger.warning("Advanced security module not available, using basic security")
-    ADVANCED_SECURITY_AVAILABLE = False
+    try:
+        from src.security import (
+            add_security_headers,
+            validate_request_security,
+            sanitize_user_input,
+            validate_file_security,
+            security_validator
+        )
+        ADVANCED_SECURITY_AVAILABLE = True
+    except ImportError:
+        logger.warning("Advanced security module not available, using basic security")
+        ADVANCED_SECURITY_AVAILABLE = False
 
-from src.whisper_transcriber import WhisperTranscriber
-from src.forensics import ForensicsEngine
-from src.speaker_identification import SpeakerIdentificationSystem
-from config import AUDIO_DIR, DATA_DIR
+try:
+    from .src.whisper_transcriber import WhisperTranscriber
+    from .src.forensics import ForensicsEngine
+    from .src.speaker_identification import SpeakerIdentificationSystem
+    from .config import AUDIO_DIR, DATA_DIR
+except ImportError:
+    from src.whisper_transcriber import WhisperTranscriber
+    from src.forensics import ForensicsEngine
+    from src.speaker_identification import SpeakerIdentificationSystem
+    from config import AUDIO_DIR, DATA_DIR
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -58,13 +80,17 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Security configuration
 security = HTTPBearer()
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 
 # Get API key from environment or generate one
 API_KEY = os.getenv("API_KEY")
 if not API_KEY:
-    API_KEY = secrets.token_urlsafe(32)
-    logger.warning("No API_KEY found in environment. Generated a temporary key — set API_KEY env var for production!")
-    # NOTE: Do NOT log the key value — it is a secret
+    if ENVIRONMENT in {"development", "dev", "test"}:
+        API_KEY = secrets.token_urlsafe(32)
+        logger.warning(f"No API_KEY found in environment. Generated temporary key: {API_KEY}")
+        logger.warning("Set API_KEY environment variable for production!")
+    else:
+        raise RuntimeError("API_KEY environment variable is required in non-development environments")
 
 # File size limits
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", 500 * 1024 * 1024))  # 500MB default
@@ -93,7 +119,7 @@ class SpeakerInitRequest(BaseModel):
 # Authentication dependency
 async def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(security)):
     """Verify API key from Authorization header"""
-    if credentials.credentials != API_KEY:
+    if not secrets.compare_digest(credentials.credentials, API_KEY):
         raise HTTPException(
             status_code=401,
             detail="Invalid API key"

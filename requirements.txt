@@ -1,6 +1,6 @@
 # Core Framework
-streamlit==1.52.2
-python-dotenv==1.2.1
+streamlit==1.58.0
+python-dotenv==1.2.2
 
 # Data Processing
 pandas==2.2.2
@@ -18,13 +18,13 @@ pydub==0.25.1
 audioread==3.0.1
 
 # Machine Learning & AI
-torch==2.5.1
-torchaudio==2.5.1
-torchvision==0.20.1
+torch==2.11.0
+torchaudio==2.11.0
+torchvision==0.26.0
 torchmetrics==1.8.2
 openai-whisper==20250625
 pyannote.audio==3.1.1
-google-generativeai==0.3.2
+google-generativeai==0.8.3
 textblob==0.17.1
 
 # Google Drive Integration
@@ -42,7 +42,7 @@ wordcloud==1.9.3
 
 # Utilities
 tqdm==4.66.1
-pillow==10.1.0
+pillow==12.2.0
 openpyxl==3.1.2  # Excel export support
 psutil==5.9.6  # System monitoring
 
@@ -54,9 +54,9 @@ spacy==3.7.2
 # numba==0.58.1  # Uncomment for faster librosa processing
 
 # API Server
-fastapi==0.115.0
+fastapi==0.137.1
 uvicorn==0.32.0
-python-multipart==0.0.9  # Required for file uploads
+python-multipart==0.0.32  # Required for file uploads
 
 # Async Operations
 aiofiles==23.2.1

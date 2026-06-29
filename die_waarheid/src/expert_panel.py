@@ -272,7 +272,17 @@ RESPOND IN JSON:
                 )
 
         except Exception as e:
-            logger.error(f"Linguistic analysis error: {e}")
+            error_str = str(e)
+            error_lower = error_str.lower()
+            
+            # Check for 410 status code (deprecated/gone endpoint)
+            if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
+                logger.error(f"Gemini API endpoint deprecated (410): {e}")
+                logger.warning("The Gemini model may be deprecated. Consider updating GEMINI_MODEL in config.py")
+            elif '429' in error_str or 'quota' in error_lower:
+                logger.warning(f"Gemini API quota exceeded: {e}")
+            else:
+                logger.error(f"Linguistic analysis error: {e}")
             return None
 
     def _summarize_past_evidence(
@@ -434,7 +444,17 @@ RESPOND IN JSON:
                 )
 
         except Exception as e:
-            logger.error(f"Psychological analysis error: {e}")
+            error_str = str(e)
+            error_lower = error_str.lower()
+            
+            # Check for 410 status code (deprecated/gone endpoint)
+            if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
+                logger.error(f"Gemini API endpoint deprecated (410): {e}")
+                logger.warning("The Gemini model may be deprecated. Consider updating GEMINI_MODEL in config.py")
+            elif '429' in error_str or 'quota' in error_lower:
+                logger.warning(f"Gemini API quota exceeded: {e}")
+            else:
+                logger.error(f"Psychological analysis error: {e}")
             return None
 
     def _summarize_past_evidence(self, past_evidence: List[Dict[str, Any]]) -> str:
@@ -590,7 +610,17 @@ RESPOND IN JSON:
                 )
 
         except Exception as e:
-            logger.error(f"Forensic analysis error: {e}")
+            error_str = str(e)
+            error_lower = error_str.lower()
+            
+            # Check for 410 status code (deprecated/gone endpoint)
+            if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
+                logger.error(f"Gemini API endpoint deprecated (410): {e}")
+                logger.warning("The Gemini model may be deprecated. Consider updating GEMINI_MODEL in config.py")
+            elif '429' in error_str or 'quota' in error_lower:
+                logger.warning(f"Gemini API quota exceeded: {e}")
+            else:
+                logger.error(f"Forensic analysis error: {e}")
             return None
 
     def _build_timeline_context(
@@ -829,7 +859,17 @@ RESPOND IN JSON:
                 )
 
         except Exception as e:
-            logger.error(f"Investigative analysis error: {e}")
+            error_str = str(e)
+            error_lower = error_str.lower()
+            
+            # Check for 410 status code (deprecated/gone endpoint)
+            if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
+                logger.error(f"Gemini API endpoint deprecated (410): {e}")
+                logger.warning("The Gemini model may be deprecated. Consider updating GEMINI_MODEL in config.py")
+            elif '429' in error_str or 'quota' in error_lower:
+                logger.warning(f"Gemini API quota exceeded: {e}")
+            else:
+                logger.error(f"Investigative analysis error: {e}")
             return None
 
     def _synthesize_comments(self, comments: List[ExpertComment]) -> str:

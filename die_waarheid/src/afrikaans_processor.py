@@ -290,8 +290,18 @@ RESPOND IN JSON FORMAT:
             }
 
         except Exception as e:
-            logger.error(f"Gemini transcription error: {str(e)}")
-            return {"success": False, "error": str(e)}
+            error_str = str(e)
+            error_lower = error_str.lower()
+            
+            # Check for 410 status code (deprecated/gone endpoint)
+            if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
+                logger.error(f"Gemini API endpoint deprecated (410): {e}")
+                logger.warning("The Gemini model may be deprecated. Consider updating GEMINI_MODEL in config.py")
+            elif '429' in error_str or 'quota' in error_lower:
+                logger.warning(f"Gemini API quota exceeded: {e}")
+            else:
+                logger.error(f"Gemini transcription error: {error_str}")
+            return {"success": False, "error": error_str}
 
 
 class AfrikaansVerificationSystem:

@@ -40,7 +40,7 @@ class TestAnalysisCache:
         """Test file hash generation"""
         hash1 = cache.get_file_hash(temp_audio_file)
         assert hash1 is not None
-        assert len(hash1) == 32  # MD5 hash length
+        assert len(hash1) == 64  # SHA-256 hash length
 
     def test_file_hash_consistency(self, cache, temp_audio_file):
         """Test that same file produces same hash"""
