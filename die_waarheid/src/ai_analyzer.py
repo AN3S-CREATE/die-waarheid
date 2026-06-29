@@ -354,9 +354,13 @@ Be concise and return only valid JSON."""
         try:
             result = self._cached_analyze(text_hash, text)
             
-            # Check if result is an error (quota exceeded, etc.)
-            if not result.get('success') and result.get('error_type') == 'quota_exceeded':
-                logger.warning("API quota exceeded, using fallback analysis")
+            # Check if result is an error (quota exceeded, deprecated model, etc.)
+            error_type = result.get('error_type')
+            if not result.get('success') and error_type in ['quota_exceeded', 'deprecated_model']:
+                if error_type == 'deprecated_model':
+                    logger.error("Gemini model deprecated/unavailable, using fallback analysis")
+                else:
+                    logger.warning("API quota exceeded, using fallback analysis")
                 return self.analyze_message_fallback(text)
             
             if result.get('cached', False):
