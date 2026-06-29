@@ -6,15 +6,16 @@
 # ============================================================================
 
 # Framework & Configuration
-streamlit==1.52.2
-python-dotenv==1.2.1
+streamlit>=1.58.0
+python-dotenv>=1.2.2
 pydantic>=2.0.0
 
 # API Framework & Security
-fastapi>=0.104.0
+fastapi>=0.137.1
 uvicorn>=0.24.0
 slowapi>=0.1.9
 bleach>=6.1.0
+python-multipart>=0.0.32
 
 # Data Processing
 pandas>=2.0.0
@@ -41,7 +42,7 @@ scipy>=1.11.0
 openai-whisper>=20231117
 
 # PyTorch for GPU acceleration (optional but recommended)
-torch>=2.0.0
+torch>=2.11.0
 
 # NVIDIA GPU support (optional)
 # nvidia-ml-py>=12.535.0
@@ -92,8 +93,8 @@ seaborn>=0.13.0
 # ============================================================================
 
 tqdm>=4.66.0
-pillow>=10.0.0
 openpyxl>=3.1.0
+pillow>=12.2.0
 mutagen>=1.46.0
 psutil>=5.9.0
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 
 interface VoiceNote {
   id: string;
@@ -46,7 +46,28 @@ interface InvestigationContextType {
 const InvestigationContext = createContext<InvestigationContextType | undefined>(undefined);
 
 export function InvestigationProvider({ children }: { children: ReactNode }) {
-  const [investigation, setInvestigationState] = useState<Investigation | null>(null);
+  const [investigation, setInvestigationState] = useState<Investigation | null>(() => {
+    const stored = localStorage.getItem('investigation');
+    if (!stored) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(stored) as Investigation;
+      parsed.voiceNotes = parsed.voiceNotes.map((note: VoiceNote) => ({
+        ...note,
+        timestamp: new Date(note.timestamp),
+      }));
+      parsed.timeline = parsed.timeline.map((note: VoiceNote) => ({
+        ...note,
+        timestamp: new Date(note.timestamp),
+      }));
+      return parsed;
+    } catch (e) {
+      console.error('Failed to load investigation from storage', e);
+      return null;
+    }
+  });
 
   const setInvestigation = (inv: Investigation) => {
     setInvestigationState(inv);
@@ -100,28 +121,6 @@ export function InvestigationProvider({ children }: { children: ReactNode }) {
     setInvestigationState(null);
     localStorage.removeItem('investigation');
   };
-
-  // Load from localStorage on mount
-  React.useEffect(() => {
-    const stored = localStorage.getItem('investigation');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        // Convert timestamp strings back to Date objects
-        parsed.voiceNotes = parsed.voiceNotes.map((note: VoiceNote) => ({
-          ...note,
-          timestamp: new Date(note.timestamp),
-        }));
-        parsed.timeline = parsed.timeline.map((note: VoiceNote) => ({
-          ...note,
-          timestamp: new Date(note.timestamp),
-        }));
-        setInvestigationState(parsed);
-      } catch (e) {
-        console.error('Failed to load investigation from storage', e);
-      }
-    }
-  }, []);
 
   return (
     <InvestigationContext.Provider

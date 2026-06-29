@@ -1,20 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Upload, AlertTriangle, TrendingUp, Activity, 
-  Users, FileAudio, MessageSquare, Brain, Download 
-} from 'lucide-react';
+import { AlertTriangle, Activity, FileAudio, Brain, Download } from 'lucide-react';
 import { useInvestigation } from '@/store/InvestigationContext';
-import { apiService } from '@/services/api';
+import { apiService, type AudioAnalysisResponse } from '@/services/api';
 
 export function InvestigationDashboard() {
   const { investigation, addVoiceNote, setCurrentAnalysis } = useInvestigation();
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleFileUpload = async (file: File) => {
     setUploading(true);
@@ -61,16 +57,16 @@ export function InvestigationDashboard() {
     }
   };
 
-  const detectDeception = (analysis: any, text?: string) => {
+  const detectDeception = (analysis: AudioAnalysisResponse, text?: string) => {
     const indicators: string[] = [];
     
-    if (analysis.stress_level > 70) {
+    if ((analysis.stress_level ?? 0) > 70) {
       indicators.push('High vocal stress detected');
     }
-    if (analysis.pitch_volatility > 50) {
+    if ((analysis.pitch_volatility ?? 0) > 50) {
       indicators.push('Unusual pitch variation');
     }
-    if (analysis.silence_ratio > 0.4) {
+    if ((analysis.silence_ratio ?? 0) > 0.4) {
       indicators.push('Excessive pauses (possible deception)');
     }
     if (text && (text.includes('honestly') || text.includes('to be honest'))) {
@@ -180,7 +176,6 @@ export function InvestigationDashboard() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    setSelectedFile(file);
                     handleFileUpload(file);
                   }
                 }}

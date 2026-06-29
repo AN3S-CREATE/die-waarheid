@@ -173,10 +173,10 @@ class PipelineProcessor:
         if stress_level > 70:
             indicators.append(f"High vocal stress ({stress_level:.1f}%)")
         
-        if pitch_volatility > 50:
+        if pitch_volatility >= 35:
             indicators.append(f"Unusual pitch variation ({pitch_volatility:.1f})")
         
-        if silence_ratio > 0.4:
+        if silence_ratio >= 0.3:
             indicators.append(f"Excessive pauses ({silence_ratio*100:.1f}%)")
         
         # Linguistic indicators
@@ -195,7 +195,7 @@ class PipelineProcessor:
         
         # Stress contribution (0-30 points)
         stress = result.get('stress_level', 0)
-        score += min(30, stress * 0.3)
+        score += min(40, stress * 0.5)
         
         # Deception indicators (0-30 points)
         deception_count = len(result.get('deception_indicators', []))
@@ -207,9 +207,9 @@ class PipelineProcessor:
         if result.get('toxicity', {}).get('toxicity_detected'):
             score += 10
         
-        # Narcissism (0-20 points)
+        # Narcissism (0-10 points)
         if result.get('narcissism', {}).get('narcissistic_patterns_detected'):
-            score += 20
+            score += 10
         
         return min(100, int(score))
     
@@ -286,8 +286,8 @@ class PipelineProcessor:
         deception_detected = sum(1 for r in self.results if r.get('deception_indicators'))
         gaslighting = sum(1 for r in self.results if r.get('gaslighting', {}).get('gaslighting_detected'))
         
-        avg_stress = sum(r.get('stress_level', 0) for r in self.results) / total
-        avg_risk = sum(r.get('risk_score', 0) for r in self.results) / total
+        avg_stress = round(sum(r.get('stress_level', 0) for r in self.results) / total, 2)
+        avg_risk = round(sum(r.get('risk_score', 0) for r in self.results) / total, 2)
         
         return {
             'total_files': total,
