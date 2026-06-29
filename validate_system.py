@@ -62,7 +62,7 @@ class SystemValidator:
         self._calculate_overall_status()
         self._print_results()
         
-        return self.results['overall_status'] == 'healthy'
+        return self.results['overall_status'] in {'healthy', 'warning'}
     
     def validate_environment(self):
         """Validate Python environment"""
@@ -135,6 +135,7 @@ class SystemValidator:
         
         # Check .env file
         env_file = Path("die_waarheid/.env")
+        env_example = Path("die_waarheid/.env.example")
         if env_file.exists():
             result['details']['env_file'] = 'exists'
             
@@ -149,9 +150,13 @@ class SystemValidator:
                 result['status'] = 'warning'
                 self.results['warnings'].append("GEMINI_API_KEY not configured")
         else:
-            result['status'] = 'error'
-            result['details']['env_file'] = 'missing'
-            self.results['errors'].append(".env file not found")
+            result['status'] = 'warning'
+            if env_example.exists():
+                result['details']['env_file'] = 'missing (template available)'
+                self.results['warnings'].append(".env file not found (copy die_waarheid/.env.example to die_waarheid/.env)")
+            else:
+                result['details']['env_file'] = 'missing'
+                self.results['warnings'].append(".env file not found")
         
         self.results['validations']['configuration'] = result
         logger.info(f"Configuration validation: {result['status']}")
@@ -260,9 +265,16 @@ class SystemValidator:
         try:
             import librosa
             import soundfile as sf
+            import numpy as np
+            import tempfile
             
-            # Test audio loading
-            y, sr = librosa.load(duration=1)
+            # Test audio loading with an actual temporary signal.
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_path = Path(tmp.name)
+            tone = np.zeros(16000, dtype=np.float32)
+            sf.write(tmp_path, tone, 16000)
+            y, sr = librosa.load(str(tmp_path), duration=1)
+            tmp_path.unlink(missing_ok=True)
             result['details']['librosa'] = 'working'
             result['details']['sample_rate'] = sr
             

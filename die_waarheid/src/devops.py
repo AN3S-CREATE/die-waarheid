@@ -6,6 +6,7 @@ Environment management, configuration validation, and deployment helpers
 import logging
 import os
 import json
+import shlex
 from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
 from datetime import datetime
@@ -292,9 +293,13 @@ class DeploymentHelper:
             Tuple of (success, output)
         """
         try:
+            command_parts = shlex.split(command)
+            if not command_parts:
+                return False, "Empty command"
+
             result = subprocess.run(
-                command,
-                shell=True,
+                command_parts,
+                shell=False,
                 cwd=cwd,
                 capture_output=True,
                 text=True

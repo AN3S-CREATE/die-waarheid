@@ -210,9 +210,9 @@ class SpeakerIdentificationSystem:
             import pyannote.audio
             self.diarization_available = True
             logger.info("Pyannote diarization available")
-        except ImportError:
+        except Exception as e:
             self.diarization_available = False
-            logger.warning("Pyannote not available - using energy-based diarization")
+            logger.warning(f"Pyannote not available - using energy-based diarization: {e}")
 
     def _load_participants(self):
         """Load existing participants from database"""
