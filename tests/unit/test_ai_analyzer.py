@@ -50,7 +50,7 @@ class TestAIAnalyzer:
         
         assert hash1 == hash2
         assert hash1 != hash3
-        assert len(hash1) == 32  # MD5 hash length
+        assert len(hash1) == 64  # SHA-256 hash length
 
     @patch('src.ai_analyzer.genai')
     def test_analyze_uncached_success(self, mock_genai):

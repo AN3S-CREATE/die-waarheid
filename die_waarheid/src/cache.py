@@ -49,11 +49,11 @@ class AnalysisCache:
             file_path: Path to file
 
         Returns:
-            MD5 hash of file content
+            SHA-256 hash of file content
         """
         try:
             with open(file_path, 'rb') as f:
-                return hashlib.md5(f.read()).hexdigest()
+                return hashlib.sha256(f.read()).hexdigest()
         except Exception as e:
             logger.error(f"Error generating file hash: {str(e)}")
             return ""
@@ -139,6 +139,7 @@ class AnalysisCache:
         if self.cache is not None:
             try:
                 self.cache.close()
+                self.cache = None
                 logger.info("Cache closed")
             except Exception as e:
                 logger.error(f"Error closing cache: {str(e)}")
