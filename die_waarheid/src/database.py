@@ -272,8 +272,8 @@ class DatabaseManager:
             "invalid": getattr(pool, 'invalid', lambda: 'N/A')(),
         }
 
-    def get_session(self) -> Session:
-        """Get database session"""
+    def get_raw_session(self) -> Session:
+        """Get raw database session (caller is responsible for commit and close)"""
         return self.SessionLocal()
     
     @contextmanager

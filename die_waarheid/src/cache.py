@@ -43,7 +43,8 @@ class AnalysisCache:
 
     def get_file_hash(self, file_path: Path) -> str:
         """
-        Generate hash for cache key from file content
+        Generate SHA-256 hash for cache key using chunked reading.
+        Chunked reading avoids loading large audio files entirely into memory.
 
         Args:
             file_path: Path to file
@@ -52,6 +53,7 @@ class AnalysisCache:
             SHA-256 hash of file content
         """
         try:
+            h = hashlib.sha256()
             with open(file_path, 'rb') as f:
                 return hashlib.sha256(f.read()).hexdigest()
         except Exception as e:

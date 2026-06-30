@@ -98,16 +98,16 @@ class WhatsAppParser:
 
                     parsed = self._parse_line(line)
 
-                if parsed and parsed.get('is_new_message'):
-                    if current_message:
-                        self.messages.append(current_message)
+                    if parsed and parsed.get('is_new_message'):
+                        if current_message:
+                            self.messages.append(current_message)
 
-                    current_message = parsed
-                    if parsed.get('sender'):
-                        self.participants.add(parsed['sender'])
+                        current_message = parsed
+                        if parsed.get('sender'):
+                            self.participants.add(parsed['sender'])
 
-                elif current_message and not parsed.get('is_new_message'):
-                    current_message['text'] += '\n' + line
+                    elif current_message and not parsed.get('is_new_message'):
+                        current_message['text'] += '\n' + line
 
             if current_message:
                 self.messages.append(current_message)

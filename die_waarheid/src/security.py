@@ -32,8 +32,8 @@ INJECTION_PATTERNS = [
     r"(?i)(exec\s*\(|execute\s*\(|sp_executesql)",
     r"(?i)(\bor\b\s+\d+\s*=\s*\d+|\band\b\s+\d+\s*=\s*\d+)",
     
-    # Command injection patterns
-    r"(?i)(;|\||&|`|\$\(|\${|<\(|>\()",
+    # Command injection patterns (semicolon excluded — common in Afrikaans text)
+    r"(?i)(\||&|`|\$\(|\${|<\(|>\()",
     r"(?i)(rm\s+-rf|del\s+/|format\s+c:)",
     r"(?i)(wget|curl|nc\s+|netcat)",
     

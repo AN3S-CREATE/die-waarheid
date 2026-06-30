@@ -128,8 +128,12 @@ class WhisperTranscriber:
                     "batch_size": 1,
                     "num_workers": 1
                 }
-            
-            logger.info(f"Successfully loaded Whisper {self.model_size} model")
+
+            # Write loaded model to class-level cache so future instances reuse it
+            with self._cache_lock:
+                self._model_cache[cache_key] = self.model
+
+            logger.info(f"Successfully loaded and cached Whisper {self.model_size} model on {self.device}")
             return True
 
         except Exception as e:

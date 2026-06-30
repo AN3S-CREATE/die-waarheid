@@ -70,3 +70,6 @@ pydantic-settings==2.1.0
 
 # Database
 sqlalchemy==2.0.36
+
+# Security (required by die_waarheid/src/security.py)
+bleach==6.1.0

@@ -410,36 +410,6 @@ async def gpu_status(request: Request, api_key: str = Depends(verify_api_key)):
         )
 
 
-@app.get("/api/security/status")
-@limiter.limit("10/minute")
-async def security_status(request: Request, api_key: str = Depends(verify_api_key)):
-    """
-    Get security system status and statistics - requires authentication
-    
-    Returns:
-        Security configuration and statistics
-    """
-    if not ADVANCED_SECURITY_AVAILABLE:
-        return {
-            "security_enabled": False,
-            "message": "Advanced security module not available"
-        }
-    
-    try:
-        security_report = security_validator.get_security_report()
-        return {
-            "security_enabled": True,
-            "timestamp": datetime.now().isoformat(),
-            **security_report
-        }
-    except Exception as e:
-        logger.error(f"Error getting security status: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Error retrieving security status"
-        )
-
-
 @app.post("/api/transcribe")
 @limiter.limit("10/minute")
 async def transcribe_audio(
@@ -523,37 +493,49 @@ async def transcribe_audio(
 
 
 @app.post("/api/analyze")
-async def analyze_audio(file: UploadFile = File(...)):
-    """Perform forensic audio analysis"""
+@limiter.limit("10/minute")
+async def analyze_audio(
+    request: Request,
+    file: UploadFile = File(...),
+    api_key: str = Depends(verify_api_key)
+):
+    """Perform forensic audio analysis - requires authentication"""
     global forensics_engine
-    
+
     if forensics_engine is None:
         forensics_engine = ForensicsEngine(use_cache=True)
-    
+
+    tmp_path = None
     try:
         # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix if file.filename else ".tmp") as tmp_file:
+            tmp_path = Path(tmp_file.name)
             content = await file.read()
             tmp_file.write(content)
-            tmp_path = Path(tmp_file.name)
-        
+
         # Analyze
         logger.info(f"Analyzing {file.filename}")
         result = forensics_engine.analyze(tmp_path)
-        
-        # Clean up
-        tmp_path.unlink()
-        
         return result
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Analysis error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Always clean up temp file regardless of success or failure
+        if tmp_path and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except Exception as cleanup_err:
+                logger.error(f"Failed to delete temp file: {cleanup_err}")
 
 
 @app.get("/api/speakers")
-async def get_speakers():
-    """Get all speaker profiles"""
+@limiter.limit("30/minute")
+async def get_speakers(request: Request, api_key: str = Depends(verify_api_key)):
+    """Get all speaker profiles - requires authentication"""
     global speaker_system
     
     if speaker_system is None:
@@ -581,8 +563,9 @@ async def get_speakers():
 
 
 @app.post("/api/speakers/initialize")
-async def initialize_speakers(data: dict):
-    """Initialize investigation with two participants"""
+@limiter.limit("10/minute")
+async def initialize_speakers(request: Request, data: dict, api_key: str = Depends(verify_api_key)):
+    """Initialize investigation with two participants - requires authentication"""
     global speaker_system
     
     if speaker_system is None:
@@ -616,11 +599,14 @@ async def initialize_speakers(data: dict):
 
 
 @app.post("/api/speakers/train")
+@limiter.limit("10/minute")
 async def train_speaker(
+    request: Request,
     file: UploadFile = File(...),
-    participant_id: str = Form(...)
+    participant_id: str = Form(...),
+    api_key: str = Depends(verify_api_key)
 ):
-    """Train speaker with voice sample"""
+    """Train speaker with voice sample - requires authentication"""
     global speaker_system
     
     if speaker_system is None:
@@ -666,8 +652,9 @@ async def train_speaker(
 
 
 @app.get("/api/files/count")
-async def get_file_count():
-    """Get count of audio files"""
+@limiter.limit("30/minute")
+async def get_file_count(request: Request, api_key: str = Depends(verify_api_key)):
+    """Get count of audio files - requires authentication"""
     try:
         count = 0
         for ext in ['mp3', 'wav', 'opus', 'ogg', 'm4a', 'aac']:
