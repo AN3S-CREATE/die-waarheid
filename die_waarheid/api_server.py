@@ -508,10 +508,10 @@ async def analyze_audio(
     tmp_path = None
     try:
         # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix) as tmp_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(file.filename).suffix if file.filename else ".tmp") as tmp_file:
+            tmp_path = Path(tmp_file.name)
             content = await file.read()
             tmp_file.write(content)
-            tmp_path = Path(tmp_file.name)
 
         # Analyze
         logger.info(f"Analyzing {file.filename}")
