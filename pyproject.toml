@@ -1,0 +1,20 @@
+[tool.black]
+line-length = 127
+target-version = ["py311"]
+skip-string-normalization = true
+exclude = '''
+/(
+  \.git
+| \.venv
+| build
+| dist
+| \.eggs
+| env
+)/
+'''
+[tool.isort]
+profile = "black"
+line_length = 127
+known_first_party = ["die_waarheid"]
+multi_line_output = 3
+include_trailing_comma = true
