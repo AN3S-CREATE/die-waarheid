@@ -55,7 +55,6 @@ def get_memory_usage() -> float:
 
 def update_memory_stats():
     """Update global memory statistics"""
-    global _memory_stats
     current_mb = get_memory_usage()
     
     with _memory_lock:
