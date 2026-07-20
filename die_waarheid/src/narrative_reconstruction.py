@@ -12,16 +12,17 @@ FEATURES:
 """
 
 import logging
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class NarrativeElement(Enum):
     """Type of narrative element"""
+
     EVENT = "event"
     CLAIM = "claim"
     EMOTION = "emotion"
@@ -32,6 +33,7 @@ class NarrativeElement(Enum):
 @dataclass
 class NarrativeEvent:
     """Single event in participant's narrative"""
+
     event_id: str
     participant_id: str
     claimed_time: datetime
@@ -46,21 +48,22 @@ class NarrativeEvent:
 @dataclass
 class ParticipantNarrative:
     """Complete narrative for one participant"""
+
     participant_id: str
     participant_name: str
-    
+
     # Narrative elements
     events: List[NarrativeEvent]
     key_claims: List[str]
     justifications: List[str]
     denials: List[str]
-    
+
     # Analysis
     narrative_consistency: float
     timeline_consistency: float
     gaps: List[Dict[str, Any]]
     inconsistencies: List[Dict[str, Any]]
-    
+
     # Summary
     overall_narrative: str
     alternative_narratives: List[str]
@@ -81,7 +84,7 @@ class NarrativeReconstructor:
         participant_id: str,
         participant_name: str,
         statements: List[Dict[str, Any]],
-        timeline_data: Optional[List[Dict[str, Any]]] = None
+        timeline_data: Optional[List[Dict[str, Any]]] = None,
     ) -> ParticipantNarrative:
         """
         Build narrative from participant statements
@@ -135,14 +138,10 @@ class NarrativeReconstructor:
         timeline_consistency = self._calculate_timeline_consistency(events)
 
         # Generate overall narrative
-        overall_narrative = self._generate_overall_narrative(
-            participant_name, events, key_claims, justifications
-        )
+        overall_narrative = self._generate_overall_narrative(participant_name, events, key_claims, justifications)
 
         # Generate alternative narratives
-        alternative_narratives = self._generate_alternative_narratives(
-            participant_name, events, inconsistencies, gaps
-        )
+        alternative_narratives = self._generate_alternative_narratives(participant_name, events, inconsistencies, gaps)
 
         narrative = ParticipantNarrative(
             participant_id=participant_id,
@@ -156,25 +155,31 @@ class NarrativeReconstructor:
             gaps=gaps,
             inconsistencies=inconsistencies,
             overall_narrative=overall_narrative,
-            alternative_narratives=alternative_narratives
+            alternative_narratives=alternative_narratives,
         )
 
         self.narratives[participant_id] = narrative
         return narrative
 
-    def _extract_events(
-        self,
-        content: str,
-        timestamp: datetime,
-        participant_id: str
-    ) -> List[NarrativeEvent]:
+    def _extract_events(self, content: str, timestamp: datetime, participant_id: str) -> List[NarrativeEvent]:
         """Extract events from statement"""
         events = []
 
         # Simple event extraction (can be enhanced with NLP)
         event_keywords = [
-            'was', 'went', 'did', 'happened', 'occurred', 'saw', 'met',
-            'talked', 'called', 'texted', 'arrived', 'left', 'stayed'
+            'was',
+            'went',
+            'did',
+            'happened',
+            'occurred',
+            'saw',
+            'met',
+            'talked',
+            'called',
+            'texted',
+            'arrived',
+            'left',
+            'stayed',
         ]
 
         sentences = content.split('.')
@@ -195,7 +200,7 @@ class NarrativeReconstructor:
                     people_involved=self._extract_people(sentence),
                     evidence_supporting=[],
                     evidence_contradicting=[],
-                    confidence=0.6
+                    confidence=0.6,
                 )
                 events.append(event)
 
@@ -206,10 +211,7 @@ class NarrativeReconstructor:
         claims = []
 
         # Simple claim extraction
-        claim_patterns = [
-            'I was', 'I am', 'I did', 'I never', 'I always',
-            'I remember', 'I know', 'I believe', 'I think'
-        ]
+        claim_patterns = ['I was', 'I am', 'I did', 'I never', 'I always', 'I remember', 'I know', 'I believe', 'I think']
 
         sentences = content.split('.')
         for sentence in sentences:
@@ -223,9 +225,7 @@ class NarrativeReconstructor:
         """Extract justifications from statement"""
         justifications = []
 
-        justification_keywords = [
-            'because', 'since', 'reason', 'why', 'due to', 'caused by'
-        ]
+        justification_keywords = ['because', 'since', 'reason', 'why', 'due to', 'caused by']
 
         sentences = content.split('.')
         for sentence in sentences:
@@ -238,10 +238,7 @@ class NarrativeReconstructor:
         """Extract denials from statement"""
         denials = []
 
-        denial_patterns = [
-            'I never', 'I didn\'t', 'I don\'t', 'I wouldn\'t',
-            'not true', 'false', 'wrong', 'that\'s not'
-        ]
+        denial_patterns = ['I never', 'I didn\'t', 'I don\'t', 'I wouldn\'t', 'not true', 'false', 'wrong', 'that\'s not']
 
         sentences = content.split('.')
         for sentence in sentences:
@@ -253,8 +250,19 @@ class NarrativeReconstructor:
     def _extract_location(self, sentence: str) -> Optional[str]:
         """Extract location from sentence"""
         location_keywords = [
-            'at', 'in', 'near', 'by', 'around', 'outside', 'inside',
-            'home', 'office', 'work', 'place', 'house', 'street'
+            'at',
+            'in',
+            'near',
+            'by',
+            'around',
+            'outside',
+            'inside',
+            'home',
+            'office',
+            'work',
+            'place',
+            'house',
+            'street',
         ]
 
         for keyword in location_keywords:
@@ -280,9 +288,7 @@ class NarrativeReconstructor:
         return list(set(people))
 
     def _identify_gaps(
-        self,
-        events: List[NarrativeEvent],
-        timeline_data: Optional[List[Dict[str, Any]]]
+        self, events: List[NarrativeEvent], timeline_data: Optional[List[Dict[str, Any]]]
     ) -> List[Dict[str, Any]]:
         """Identify gaps in narrative"""
         gaps = []
@@ -303,61 +309,50 @@ class NarrativeReconstructor:
             for i in range(len(sorted_events) - 1):
                 gap = (sorted_events[i + 1] - sorted_events[i]).total_seconds() / 3600
                 if gap > 24:
-                    gaps.append({
-                        'start': sorted_events[i].isoformat(),
-                        'end': sorted_events[i + 1].isoformat(),
-                        'duration_hours': gap,
-                        'description': f"No events reported for {gap:.0f} hours"
-                    })
+                    gaps.append(
+                        {
+                            'start': sorted_events[i].isoformat(),
+                            'end': sorted_events[i + 1].isoformat(),
+                            'duration_hours': gap,
+                            'description': f"No events reported for {gap:.0f} hours",
+                        }
+                    )
 
         return gaps
 
-    def _identify_inconsistencies(
-        self,
-        events: List[NarrativeEvent],
-        claims: List[str]
-    ) -> List[Dict[str, Any]]:
+    def _identify_inconsistencies(self, events: List[NarrativeEvent], claims: List[str]) -> List[Dict[str, Any]]:
         """Identify inconsistencies in narrative"""
         inconsistencies = []
 
         # Check for contradictory claims
         for i, claim1 in enumerate(claims):
-            for j, claim2 in enumerate(claims[i + 1:], start=i + 1):
+            for j, claim2 in enumerate(claims[i + 1 :], start=i + 1):
                 # Simple contradiction detection
                 if 'never' in claim1.lower() and 'always' in claim2.lower():
-                    inconsistencies.append({
-                        'claim_a': claim1,
-                        'claim_b': claim2,
-                        'type': 'direct_contradiction',
-                        'severity': 'high'
-                    })
+                    inconsistencies.append(
+                        {'claim_a': claim1, 'claim_b': claim2, 'type': 'direct_contradiction', 'severity': 'high'}
+                    )
                 elif 'didn\'t' in claim1.lower() and 'did' in claim2.lower():
-                    inconsistencies.append({
-                        'claim_a': claim1,
-                        'claim_b': claim2,
-                        'type': 'action_contradiction',
-                        'severity': 'high'
-                    })
+                    inconsistencies.append(
+                        {'claim_a': claim1, 'claim_b': claim2, 'type': 'action_contradiction', 'severity': 'high'}
+                    )
 
         return inconsistencies
 
-    def _calculate_narrative_consistency(
-        self,
-        events: List[NarrativeEvent],
-        claims: List[str]
-    ) -> float:
+    def _calculate_narrative_consistency(self, events: List[NarrativeEvent], claims: List[str]) -> float:
         """Calculate narrative consistency score (0-1)"""
         if not events or not claims:
             return 0.5
 
         # Score based on number of inconsistencies
         consistency = 1.0
-        
+
         # Penalize for contradictions
         for i, claim1 in enumerate(claims):
-            for claim2 in claims[i + 1:]:
-                if ('never' in claim1.lower() and 'always' in claim2.lower()) or \
-                   ('didn\'t' in claim1.lower() and 'did' in claim2.lower()):
+            for claim2 in claims[i + 1 :]:
+                if ('never' in claim1.lower() and 'always' in claim2.lower()) or (
+                    'didn\'t' in claim1.lower() and 'did' in claim2.lower()
+                ):
                     consistency -= 0.1
 
         return max(0.0, consistency)
@@ -369,18 +364,14 @@ class NarrativeReconstructor:
 
         # Check if events are in chronological order
         sorted_events = sorted(events, key=lambda x: x.claimed_time)
-        
+
         in_order = sum(1 for i, event in enumerate(events) if event == sorted_events[i])
         consistency = in_order / len(events)
 
         return consistency
 
     def _generate_overall_narrative(
-        self,
-        participant_name: str,
-        events: List[NarrativeEvent],
-        claims: List[str],
-        justifications: List[str]
+        self, participant_name: str, events: List[NarrativeEvent], claims: List[str], justifications: List[str]
     ) -> str:
         """Generate overall narrative summary"""
         narrative = f"{participant_name}'s account:\n\n"
@@ -407,7 +398,7 @@ class NarrativeReconstructor:
         participant_name: str,
         events: List[NarrativeEvent],
         inconsistencies: List[Dict[str, Any]],
-        gaps: List[Dict[str, Any]]
+        gaps: List[Dict[str, Any]],
     ) -> List[str]:
         """Generate alternative narrative explanations"""
         alternatives = []
@@ -433,11 +424,7 @@ class NarrativeReconstructor:
         """Get narrative for participant"""
         return self.narratives.get(participant_id)
 
-    def compare_narratives(
-        self,
-        participant_a_id: str,
-        participant_b_id: str
-    ) -> Dict[str, Any]:
+    def compare_narratives(self, participant_a_id: str, participant_b_id: str) -> Dict[str, Any]:
         """
         Compare two participant narratives
 
@@ -461,12 +448,14 @@ class NarrativeReconstructor:
                 # Check if events are about same time period
                 time_diff = abs((event_a.claimed_time - event_b.claimed_time).total_seconds() / 3600)
                 if time_diff < 24:  # Within 24 hours
-                    overlapping_events.append({
-                        'participant_a_event': event_a.event_description,
-                        'participant_b_event': event_b.event_description,
-                        'time_difference_hours': time_diff,
-                        'agreement': self._check_event_agreement(event_a, event_b)
-                    })
+                    overlapping_events.append(
+                        {
+                            'participant_a_event': event_a.event_description,
+                            'participant_b_event': event_b.event_description,
+                            'time_difference_hours': time_diff,
+                            'agreement': self._check_event_agreement(event_a, event_b),
+                        }
+                    )
 
         return {
             'participant_a': narrative_a.participant_name,
@@ -476,14 +465,10 @@ class NarrativeReconstructor:
             'narrative_b_consistency': narrative_b.narrative_consistency,
             'timeline_a_consistency': narrative_a.timeline_consistency,
             'timeline_b_consistency': narrative_b.timeline_consistency,
-            'agreement_level': self._calculate_agreement_level(overlapping_events)
+            'agreement_level': self._calculate_agreement_level(overlapping_events),
         }
 
-    def _check_event_agreement(
-        self,
-        event_a: NarrativeEvent,
-        event_b: NarrativeEvent
-    ) -> str:
+    def _check_event_agreement(self, event_a: NarrativeEvent, event_b: NarrativeEvent) -> str:
         """Check if two events agree"""
         desc_a = event_a.event_description.lower()
         desc_b = event_b.event_description.lower()
@@ -502,11 +487,7 @@ class NarrativeReconstructor:
         if not overlapping_events:
             return 0.0
 
-        agreement_scores = {
-            'high_agreement': 1.0,
-            'partial_agreement': 0.5,
-            'disagreement': 0.0
-        }
+        agreement_scores = {'high_agreement': 1.0, 'partial_agreement': 0.5, 'disagreement': 0.0}
 
         total = sum(agreement_scores.get(e['agreement'], 0) for e in overlapping_events)
         return total / len(overlapping_events)
@@ -519,6 +500,7 @@ class NarrativeReconstructor:
                 return False
 
             import json
+
             data = {
                 'participant_id': narrative.participant_id,
                 'participant_name': narrative.participant_name,
@@ -529,7 +511,7 @@ class NarrativeReconstructor:
                 'inconsistencies': narrative.inconsistencies,
                 'alternative_narratives': narrative.alternative_narratives,
                 'key_claims': narrative.key_claims,
-                'denials': narrative.denials
+                'denials': narrative.denials,
             }
 
             with open(output_path, 'w', encoding='utf-8') as f:

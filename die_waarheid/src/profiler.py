@@ -4,17 +4,12 @@ Advanced pattern detection and behavioral analysis
 """
 
 import logging
-from typing import Dict, List, Optional, Tuple
-from datetime import datetime
 from collections import Counter
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-
-from config import (
-    GASLIGHTING_PHRASES,
-    TOXICITY_PHRASES,
-    NARCISSISTIC_PATTERNS
-)
+from config import GASLIGHTING_PHRASES, NARCISSISTIC_PATTERNS, TOXICITY_PHRASES
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +160,7 @@ class PsychologicalProfiler:
             'semicolons': 0,
             'colons': 0,
             'ellipsis': 0,
-            'multiple_punctuation': 0
+            'multiple_punctuation': 0,
         }
 
         for text in texts:
@@ -189,7 +184,7 @@ class PsychologicalProfiler:
         response_lengths = []
 
         for i in range(1, len(sender_messages)):
-            prev_time = sender_messages[i-1].get('timestamp')
+            prev_time = sender_messages[i - 1].get('timestamp')
             curr_time = sender_messages[i].get('timestamp')
 
             if prev_time and curr_time:
@@ -202,7 +197,7 @@ class PsychologicalProfiler:
         return {
             'response_count': len(sender_messages) - 1,
             'avg_response_time_seconds': sum(response_times) / len(response_times) if response_times else 0,
-            'avg_response_length': sum(response_lengths) / len(response_lengths) if response_lengths else 0
+            'avg_response_length': sum(response_lengths) / len(response_lengths) if response_lengths else 0,
         }
 
     def _count_toxicity_indicators(self, texts: List[str]) -> int:
@@ -253,7 +248,7 @@ class PsychologicalProfiler:
             'message_distribution': {},
             'interaction_patterns': {},
             'power_indicators': {},
-            'conflict_indicators': {}
+            'conflict_indicators': {},
         }
 
         for sender in senders:
@@ -270,11 +265,15 @@ class PsychologicalProfiler:
             dynamics['interaction_patterns'] = {
                 'sender1': sender1,
                 'sender1_message_count': len(sender1_msgs),
-                'sender1_avg_length': sum(len(m.get('text', '')) for m in sender1_msgs) / len(sender1_msgs) if sender1_msgs else 0,
+                'sender1_avg_length': (
+                    sum(len(m.get('text', '')) for m in sender1_msgs) / len(sender1_msgs) if sender1_msgs else 0
+                ),
                 'sender2': sender2,
                 'sender2_message_count': len(sender2_msgs),
-                'sender2_avg_length': sum(len(m.get('text', '')) for m in sender2_msgs) / len(sender2_msgs) if sender2_msgs else 0,
-                'message_ratio': len(sender1_msgs) / len(sender2_msgs) if sender2_msgs else 0
+                'sender2_avg_length': (
+                    sum(len(m.get('text', '')) for m in sender2_msgs) / len(sender2_msgs) if sender2_msgs else 0
+                ),
+                'message_ratio': len(sender1_msgs) / len(sender2_msgs) if sender2_msgs else 0,
             }
 
             sender1_toxicity = sum(1 for m in sender1_msgs if self._has_toxicity(m.get('text', '')))
@@ -283,7 +282,7 @@ class PsychologicalProfiler:
             dynamics['conflict_indicators'] = {
                 'sender1_toxicity_messages': sender1_toxicity,
                 'sender2_toxicity_messages': sender2_toxicity,
-                'overall_conflict_level': min(1.0, (sender1_toxicity + sender2_toxicity) / max(len(self.message_data), 1))
+                'overall_conflict_level': min(1.0, (sender1_toxicity + sender2_toxicity) / max(len(self.message_data), 1)),
             }
 
         logger.info(f"Analyzed relationship dynamics for {len(senders)} participants")

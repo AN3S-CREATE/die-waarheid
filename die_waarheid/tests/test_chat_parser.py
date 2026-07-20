@@ -2,10 +2,10 @@
 Unit tests for WhatsApp chat parser
 """
 
-import unittest
 import sys
-from pathlib import Path
+import unittest
 from datetime import datetime
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -28,7 +28,7 @@ class TestWhatsAppParser(unittest.TestCase):
         """Test parsing timestamp format: [DD/MM/YYYY, HH:MM:SS]"""
         timestamp_str = "[01/01/2024, 10:30:45]"
         parsed = self.parser._parse_timestamp(timestamp_str)
-        
+
         self.assertIsNotNone(parsed)
         self.assertEqual(parsed.year, 2024)
         self.assertEqual(parsed.month, 1)
@@ -38,7 +38,7 @@ class TestWhatsAppParser(unittest.TestCase):
         """Test parsing timestamp format: DD/MM/YYYY, HH:MM"""
         timestamp_str = "01/01/2024, 10:30"
         parsed = self.parser._parse_timestamp(timestamp_str)
-        
+
         self.assertIsNotNone(parsed)
         self.assertEqual(parsed.year, 2024)
 
@@ -71,13 +71,13 @@ class TestWhatsAppParser(unittest.TestCase):
         """Test sender name extraction"""
         line = "[01/01/2024, 10:30:45] John Doe: Hello"
         sender = self.parser._extract_sender(line)
-        
+
         self.assertEqual(sender, "John Doe")
 
     def test_get_metadata(self):
         """Test metadata generation"""
         metadata = self.parser.get_metadata()
-        
+
         self.assertIsInstance(metadata, dict)
         self.assertIn('total_messages', metadata)
         self.assertIn('unique_senders', metadata)
@@ -85,7 +85,7 @@ class TestWhatsAppParser(unittest.TestCase):
     def test_get_statistics(self):
         """Test statistics generation"""
         stats = self.parser.get_statistics()
-        
+
         self.assertIsInstance(stats, dict)
         self.assertIn('message_count', stats)
 
@@ -100,9 +100,9 @@ class TestMessageParsing(unittest.TestCase):
     def test_parse_valid_message(self):
         """Test parsing a valid message line"""
         line = "[01/01/2024, 10:30:45] John: Hello world"
-        
+
         message = self.parser._parse_message_line(line)
-        
+
         if message:
             self.assertIn('timestamp', message)
             self.assertIn('sender', message)
@@ -110,17 +110,14 @@ class TestMessageParsing(unittest.TestCase):
 
     def test_parse_multiline_message(self):
         """Test handling of multiline messages"""
-        lines = [
-            "[01/01/2024, 10:30:45] John: Hello",
-            "This is a continuation"
-        ]
-        
+        lines = ["[01/01/2024, 10:30:45] John: Hello", "This is a continuation"]
+
         self.assertIsNotNone(self.parser)
 
     def test_message_count(self):
         """Test message counting"""
         count = self.parser.get_message_count()
-        
+
         self.assertIsInstance(count, int)
         self.assertGreaterEqual(count, 0)
 

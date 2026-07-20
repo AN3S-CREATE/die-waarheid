@@ -3,11 +3,11 @@ Caching layer for Die Waarheid
 Provides persistent caching for expensive operations
 """
 
-import logging
 import hashlib
+import logging
 import shelve
 from pathlib import Path
-from typing import Dict, Optional, Any
+from typing import Any, Dict, Optional
 
 from config import TEMP_DIR
 
@@ -29,11 +29,11 @@ class AnalysisCache:
         """
         if cache_dir is None:
             cache_dir = TEMP_DIR
-        
+
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.cache_path = str(self.cache_dir / "analysis_cache")
-        
+
         try:
             self.cache = shelve.open(self.cache_path)
             logger.info(f"Initialized analysis cache at {self.cache_path}")

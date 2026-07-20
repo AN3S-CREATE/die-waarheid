@@ -11,33 +11,30 @@ EXPERT ROLES:
 5. Investigative Expert - Pattern recognition, case strategy, risk assessment
 """
 
+import json
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-import json
-import re
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import google.generativeai as genai
+
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
     genai = None
 
-from config import (
-    GEMINI_API_KEY,
-    GEMINI_MODEL,
-    GEMINI_TEMPERATURE,
-    GEMINI_SAFETY_SETTINGS
-)
+from config import GEMINI_API_KEY, GEMINI_MODEL, GEMINI_SAFETY_SETTINGS, GEMINI_TEMPERATURE
 
 logger = logging.getLogger(__name__)
 
 
 class ExpertRole(Enum):
     """Expert panel roles"""
+
     LINGUISTIC = "linguistic_expert"
     PSYCHOLOGICAL = "psychological_expert"
     FORENSIC = "forensic_expert"
@@ -47,6 +44,7 @@ class ExpertRole(Enum):
 
 class CommentarySeverity(Enum):
     """Severity of expert commentary"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -57,26 +55,27 @@ class CommentarySeverity(Enum):
 @dataclass
 class ExpertComment:
     """Single expert commentary"""
+
     comment_id: str
     expert_role: ExpertRole
     evidence_id: str
     timestamp: str
-    
+
     # Commentary
     title: str
     analysis: str
     key_findings: List[str]
     severity: CommentarySeverity
-    
+
     # Cross-references
     references_past_evidence: List[str]
     contradictions: List[Dict[str, str]]
     pattern_observations: List[str]
-    
+
     # Recommendations
     recommendations: List[str]
     confidence: float
-    
+
     def to_dict(self) -> Dict:
         return {
             'comment_id': self.comment_id,
@@ -91,33 +90,34 @@ class ExpertComment:
             'contradictions': self.contradictions,
             'pattern_observations': self.pattern_observations,
             'recommendations': self.recommendations,
-            'confidence': self.confidence
+            'confidence': self.confidence,
         }
 
 
 @dataclass
 class ExpertBrief:
     """Complete expert brief for an evidence item"""
+
     brief_id: str
     evidence_id: str
     generated_at: str
-    
+
     # Comments from all experts
     expert_comments: List[ExpertComment]
-    
+
     # Synthesis
     overall_assessment: str
     critical_issues: List[str]
     pattern_changes: List[str]
     timeline_concerns: List[str]
-    
+
     # Risk assessment
     risk_score: float
     risk_level: str
-    
+
     # Next steps
     recommended_actions: List[str]
-    
+
     def to_dict(self) -> Dict:
         return {
             'brief_id': self.brief_id,
@@ -130,13 +130,13 @@ class ExpertBrief:
             'timeline_concerns': self.timeline_concerns,
             'risk_score': self.risk_score,
             'risk_level': self.risk_level,
-            'recommended_actions': self.recommended_actions
+            'recommended_actions': self.recommended_actions,
         }
 
 
 class LinguisticExpert:
     """Linguistic analysis expert"""
-    
+
     def __init__(self):
         """Initialize linguistic expert"""
         self.comment_counter = 0
@@ -148,20 +148,13 @@ class LinguisticExpert:
         if GENAI_AVAILABLE and GEMINI_API_KEY:
             try:
                 genai.configure(api_key=GEMINI_API_KEY)
-                self.model = genai.GenerativeModel(
-                    model_name=GEMINI_MODEL,
-                    safety_settings=GEMINI_SAFETY_SETTINGS
-                )
+                self.model = genai.GenerativeModel(model_name=GEMINI_MODEL, safety_settings=GEMINI_SAFETY_SETTINGS)
                 self.gemini_configured = True
             except Exception as e:
                 logger.error(f"Error configuring Gemini: {e}")
 
     def analyze_evidence(
-        self,
-        evidence_text: str,
-        evidence_id: str,
-        sender: str,
-        past_evidence: List[Dict[str, Any]]
+        self, evidence_text: str, evidence_id: str, sender: str, past_evidence: List[Dict[str, Any]]
     ) -> Optional[ExpertComment]:
         """
         Analyze evidence from linguistic perspective
@@ -236,23 +229,19 @@ RESPOND IN JSON:
 }}"""
 
             response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.2,
-                    max_output_tokens=2000
-                )
+                prompt, generation_config=genai.types.GenerationConfig(temperature=0.2, max_output_tokens=2000)
             )
 
             json_match = re.search(r'\{[\s\S]*\}', response.text)
             if json_match:
                 result = json.loads(json_match.group())
-                
+
                 severity_map = {
                     'critical': CommentarySeverity.CRITICAL,
                     'high': CommentarySeverity.HIGH,
                     'medium': CommentarySeverity.MEDIUM,
                     'low': CommentarySeverity.LOW,
-                    'informational': CommentarySeverity.INFORMATIONAL
+                    'informational': CommentarySeverity.INFORMATIONAL,
                 }
 
                 return ExpertComment(
@@ -268,13 +257,13 @@ RESPOND IN JSON:
                     contradictions=result.get('contradictions', []),
                     pattern_observations=result.get('pattern_observations', []),
                     recommendations=result.get('recommendations', []),
-                    confidence=result.get('confidence', 0.7)
+                    confidence=result.get('confidence', 0.7),
                 )
 
         except Exception as e:
             error_str = str(e)
             error_lower = error_str.lower()
-            
+
             # Check for 410 status code (deprecated/gone endpoint)
             if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
                 logger.error(f"Gemini API endpoint deprecated (410): {e}")
@@ -285,11 +274,7 @@ RESPOND IN JSON:
                 logger.error(f"Linguistic analysis error: {e}")
             return None
 
-    def _summarize_past_evidence(
-        self,
-        past_evidence: List[Dict[str, Any]],
-        sender: str
-    ) -> str:
+    def _summarize_past_evidence(self, past_evidence: List[Dict[str, Any]], sender: str) -> str:
         """Summarize past evidence from same sender"""
         if not past_evidence:
             return "No past evidence from this speaker."
@@ -305,7 +290,7 @@ RESPOND IN JSON:
 
 class PsychologicalExpert:
     """Psychological analysis expert"""
-    
+
     def __init__(self):
         """Initialize psychological expert"""
         self.comment_counter = 0
@@ -317,10 +302,7 @@ class PsychologicalExpert:
         if GENAI_AVAILABLE and GEMINI_API_KEY:
             try:
                 genai.configure(api_key=GEMINI_API_KEY)
-                self.model = genai.GenerativeModel(
-                    model_name=GEMINI_MODEL,
-                    safety_settings=GEMINI_SAFETY_SETTINGS
-                )
+                self.model = genai.GenerativeModel(model_name=GEMINI_MODEL, safety_settings=GEMINI_SAFETY_SETTINGS)
                 self.gemini_configured = True
             except Exception as e:
                 logger.error(f"Error configuring Gemini: {e}")
@@ -331,7 +313,7 @@ class PsychologicalExpert:
         evidence_id: str,
         sender: str,
         past_evidence: List[Dict[str, Any]],
-        audio_stress: Optional[float] = None
+        audio_stress: Optional[float] = None,
     ) -> Optional[ExpertComment]:
         """
         Analyze evidence from psychological perspective
@@ -408,23 +390,19 @@ RESPOND IN JSON:
 }}"""
 
             response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.2,
-                    max_output_tokens=2000
-                )
+                prompt, generation_config=genai.types.GenerationConfig(temperature=0.2, max_output_tokens=2000)
             )
 
             json_match = re.search(r'\{[\s\S]*\}', response.text)
             if json_match:
                 result = json.loads(json_match.group())
-                
+
                 severity_map = {
                     'critical': CommentarySeverity.CRITICAL,
                     'high': CommentarySeverity.HIGH,
                     'medium': CommentarySeverity.MEDIUM,
                     'low': CommentarySeverity.LOW,
-                    'informational': CommentarySeverity.INFORMATIONAL
+                    'informational': CommentarySeverity.INFORMATIONAL,
                 }
 
                 return ExpertComment(
@@ -440,13 +418,13 @@ RESPOND IN JSON:
                     contradictions=result.get('contradictions', []),
                     pattern_observations=result.get('pattern_observations', []),
                     recommendations=result.get('recommendations', []),
-                    confidence=result.get('confidence', 0.7)
+                    confidence=result.get('confidence', 0.7),
                 )
 
         except Exception as e:
             error_str = str(e)
             error_lower = error_str.lower()
-            
+
             # Check for 410 status code (deprecated/gone endpoint)
             if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
                 logger.error(f"Gemini API endpoint deprecated (410): {e}")
@@ -473,7 +451,7 @@ RESPOND IN JSON:
 
 class ForensicExpert:
     """Forensic analysis expert"""
-    
+
     def __init__(self):
         """Initialize forensic expert"""
         self.comment_counter = 0
@@ -485,10 +463,7 @@ class ForensicExpert:
         if GENAI_AVAILABLE and GEMINI_API_KEY:
             try:
                 genai.configure(api_key=GEMINI_API_KEY)
-                self.model = genai.GenerativeModel(
-                    model_name=GEMINI_MODEL,
-                    safety_settings=GEMINI_SAFETY_SETTINGS
-                )
+                self.model = genai.GenerativeModel(model_name=GEMINI_MODEL, safety_settings=GEMINI_SAFETY_SETTINGS)
                 self.gemini_configured = True
             except Exception as e:
                 logger.error(f"Error configuring Gemini: {e}")
@@ -499,7 +474,7 @@ class ForensicExpert:
         evidence_id: str,
         sender: str,
         evidence_timestamp: datetime,
-        past_evidence: List[Dict[str, Any]]
+        past_evidence: List[Dict[str, Any]],
     ) -> Optional[ExpertComment]:
         """
         Analyze evidence from forensic perspective
@@ -574,23 +549,19 @@ RESPOND IN JSON:
 }}"""
 
             response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.2,
-                    max_output_tokens=2000
-                )
+                prompt, generation_config=genai.types.GenerationConfig(temperature=0.2, max_output_tokens=2000)
             )
 
             json_match = re.search(r'\{[\s\S]*\}', response.text)
             if json_match:
                 result = json.loads(json_match.group())
-                
+
                 severity_map = {
                     'critical': CommentarySeverity.CRITICAL,
                     'high': CommentarySeverity.HIGH,
                     'medium': CommentarySeverity.MEDIUM,
                     'low': CommentarySeverity.LOW,
-                    'informational': CommentarySeverity.INFORMATIONAL
+                    'informational': CommentarySeverity.INFORMATIONAL,
                 }
 
                 return ExpertComment(
@@ -606,13 +577,13 @@ RESPOND IN JSON:
                     contradictions=result.get('contradictions', []),
                     pattern_observations=result.get('pattern_observations', []),
                     recommendations=result.get('recommendations', []),
-                    confidence=result.get('confidence', 0.7)
+                    confidence=result.get('confidence', 0.7),
                 )
 
         except Exception as e:
             error_str = str(e)
             error_lower = error_str.lower()
-            
+
             # Check for 410 status code (deprecated/gone endpoint)
             if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
                 logger.error(f"Gemini API endpoint deprecated (410): {e}")
@@ -623,11 +594,7 @@ RESPOND IN JSON:
                 logger.error(f"Forensic analysis error: {e}")
             return None
 
-    def _build_timeline_context(
-        self,
-        past_evidence: List[Dict[str, Any]],
-        current_timestamp: datetime
-    ) -> str:
+    def _build_timeline_context(self, past_evidence: List[Dict[str, Any]], current_timestamp: datetime) -> str:
         """Build timeline context"""
         if not past_evidence:
             return "No past evidence to compare."
@@ -647,17 +614,13 @@ RESPOND IN JSON:
 
 class AudioExpert:
     """Audio analysis expert"""
-    
+
     def __init__(self):
         """Initialize audio expert"""
         self.comment_counter = 0
 
     def analyze_evidence(
-        self,
-        evidence_id: str,
-        sender: str,
-        audio_metrics: Dict[str, float],
-        past_audio: List[Dict[str, Any]]
+        self, evidence_id: str, sender: str, audio_metrics: Dict[str, float], past_audio: List[Dict[str, Any]]
     ) -> Optional[ExpertComment]:
         """
         Analyze audio evidence
@@ -701,14 +664,14 @@ class AudioExpert:
 
             # Compare with past
             if past_stress and stress_level > avg_past_stress * 1.5:
-                pattern_observations.append(
-                    f"Stress level significantly higher than average ({avg_past_stress:.0f})"
+                pattern_observations.append(f"Stress level significantly higher than average ({avg_past_stress:.0f})")
+                contradictions.append(
+                    {
+                        'current_behavior': f'High stress ({stress_level:.0f})',
+                        'past_behavior': f'Average stress ({avg_past_stress:.0f})',
+                        'implication': 'Speaker may be under unusual pressure or stress',
+                    }
                 )
-                contradictions.append({
-                    'current_behavior': f'High stress ({stress_level:.0f})',
-                    'past_behavior': f'Average stress ({avg_past_stress:.0f})',
-                    'implication': 'Speaker may be under unusual pressure or stress'
-                })
 
             # Pitch volatility
             if pitch_volatility > 0.7:
@@ -733,7 +696,7 @@ class AudioExpert:
                 contradictions=contradictions,
                 pattern_observations=pattern_observations,
                 recommendations=recommendations,
-                confidence=0.85
+                confidence=0.85,
             )
 
         except Exception as e:
@@ -743,7 +706,7 @@ class AudioExpert:
 
 class InvestigativeExpert:
     """Investigative strategy expert"""
-    
+
     def __init__(self):
         """Initialize investigative expert"""
         self.comment_counter = 0
@@ -755,19 +718,13 @@ class InvestigativeExpert:
         if GENAI_AVAILABLE and GEMINI_API_KEY:
             try:
                 genai.configure(api_key=GEMINI_API_KEY)
-                self.model = genai.GenerativeModel(
-                    model_name=GEMINI_MODEL,
-                    safety_settings=GEMINI_SAFETY_SETTINGS
-                )
+                self.model = genai.GenerativeModel(model_name=GEMINI_MODEL, safety_settings=GEMINI_SAFETY_SETTINGS)
                 self.gemini_configured = True
             except Exception as e:
                 logger.error(f"Error configuring Gemini: {e}")
 
     def analyze_evidence(
-        self,
-        evidence_id: str,
-        all_comments: List[ExpertComment],
-        all_evidence: List[Dict[str, Any]]
+        self, evidence_id: str, all_comments: List[ExpertComment], all_evidence: List[Dict[str, Any]]
     ) -> Optional[ExpertComment]:
         """
         Synthesize all expert opinions into investigative strategy
@@ -824,22 +781,18 @@ RESPOND IN JSON:
 }}"""
 
             response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.2,
-                    max_output_tokens=1500
-                )
+                prompt, generation_config=genai.types.GenerationConfig(temperature=0.2, max_output_tokens=1500)
             )
 
             json_match = re.search(r'\{[\s\S]*\}', response.text)
             if json_match:
                 result = json.loads(json_match.group())
-                
+
                 severity_map = {
                     'critical': CommentarySeverity.CRITICAL,
                     'high': CommentarySeverity.HIGH,
                     'medium': CommentarySeverity.MEDIUM,
-                    'low': CommentarySeverity.LOW
+                    'low': CommentarySeverity.LOW,
                 }
 
                 return ExpertComment(
@@ -855,13 +808,13 @@ RESPOND IN JSON:
                     contradictions=[],
                     pattern_observations=result.get('pattern_observations', []),
                     recommendations=result.get('recommendations', []),
-                    confidence=result.get('confidence', 0.7)
+                    confidence=result.get('confidence', 0.7),
                 )
 
         except Exception as e:
             error_str = str(e)
             error_lower = error_str.lower()
-            
+
             # Check for 410 status code (deprecated/gone endpoint)
             if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
                 logger.error(f"Gemini API endpoint deprecated (410): {e}")
@@ -909,7 +862,7 @@ class ExpertPanelAnalyzer:
         sender: str,
         evidence_timestamp: datetime,
         audio_metrics: Optional[Dict[str, float]] = None,
-        past_evidence: Optional[List[Dict[str, Any]]] = None
+        past_evidence: Optional[List[Dict[str, Any]]] = None,
     ) -> ExpertBrief:
         """
         Generate comprehensive expert brief for evidence
@@ -939,17 +892,18 @@ class ExpertPanelAnalyzer:
 
         # Linguistic analysis
         if evidence_text:
-            ling_comment = self.linguistic_expert.analyze_evidence(
-                evidence_text, evidence_id, sender, past_evidence
-            )
+            ling_comment = self.linguistic_expert.analyze_evidence(evidence_text, evidence_id, sender, past_evidence)
             if ling_comment:
                 expert_comments.append(ling_comment)
 
         # Psychological analysis
         if evidence_text:
             psych_comment = self.psychological_expert.analyze_evidence(
-                evidence_text, evidence_id, sender, past_evidence,
-                audio_stress=audio_metrics.get('stress_level') if audio_metrics else None
+                evidence_text,
+                evidence_id,
+                sender,
+                past_evidence,
+                audio_stress=audio_metrics.get('stress_level') if audio_metrics else None,
             )
             if psych_comment:
                 expert_comments.append(psych_comment)
@@ -965,16 +919,13 @@ class ExpertPanelAnalyzer:
         # Audio analysis
         if audio_metrics:
             audio_comment = self.audio_expert.analyze_evidence(
-                evidence_id, sender, audio_metrics,
-                [e for e in past_evidence if e.get('audio_metrics')]
+                evidence_id, sender, audio_metrics, [e for e in past_evidence if e.get('audio_metrics')]
             )
             if audio_comment:
                 expert_comments.append(audio_comment)
 
         # Investigative synthesis
-        inv_comment = self.investigative_expert.analyze_evidence(
-            evidence_id, expert_comments, past_evidence
-        )
+        inv_comment = self.investigative_expert.analyze_evidence(evidence_id, expert_comments, past_evidence)
         if inv_comment:
             expert_comments.append(inv_comment)
 
@@ -983,19 +934,11 @@ class ExpertPanelAnalyzer:
 
         return brief
 
-    def _synthesize_brief(
-        self,
-        brief_id: str,
-        evidence_id: str,
-        expert_comments: List[ExpertComment]
-    ) -> ExpertBrief:
+    def _synthesize_brief(self, brief_id: str, evidence_id: str, expert_comments: List[ExpertComment]) -> ExpertBrief:
         """Synthesize expert comments into brief"""
-        
+
         # Extract critical issues
-        critical_issues = [
-            c.title for c in expert_comments
-            if c.severity == CommentarySeverity.CRITICAL
-        ]
+        critical_issues = [c.title for c in expert_comments if c.severity == CommentarySeverity.CRITICAL]
 
         # Extract pattern changes
         pattern_changes = []
@@ -1014,13 +957,12 @@ class ExpertPanelAnalyzer:
             CommentarySeverity.HIGH: 20,
             CommentarySeverity.MEDIUM: 10,
             CommentarySeverity.LOW: 5,
-            CommentarySeverity.INFORMATIONAL: 1
+            CommentarySeverity.INFORMATIONAL: 1,
         }
 
-        risk_score = sum(
-            severity_weights.get(c.severity, 0) * c.confidence
-            for c in expert_comments
-        ) / max(len(expert_comments), 1)
+        risk_score = sum(severity_weights.get(c.severity, 0) * c.confidence for c in expert_comments) / max(
+            len(expert_comments), 1
+        )
 
         risk_score = min(100, risk_score)
 
@@ -1056,7 +998,7 @@ class ExpertPanelAnalyzer:
             timeline_concerns=timeline_concerns,
             risk_score=risk_score,
             risk_level=risk_level,
-            recommended_actions=recommendations
+            recommended_actions=recommendations,
         )
 
     def _generate_overall_assessment(self, comments: List[ExpertComment]) -> str:

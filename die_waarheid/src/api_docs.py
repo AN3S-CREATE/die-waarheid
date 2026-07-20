@@ -3,7 +3,7 @@ API Documentation for Die Waarheid
 Comprehensive API reference with usage examples and parameter documentation
 """
 
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 
 class APIDocumentation:
@@ -19,16 +19,10 @@ class APIDocumentation:
         "methods": {
             "analyze": {
                 "description": "Complete forensic analysis of audio file with caching support",
-                "parameters": {
-                    "file_path": {
-                        "type": "Path",
-                        "description": "Path to audio file",
-                        "required": True
-                    }
-                },
+                "parameters": {"file_path": {"type": "Path", "description": "Path to audio file", "required": True}},
                 "returns": {
                     "type": "Dict",
-                    "description": "Dictionary with forensic metrics including stress level, pitch volatility, silence ratio, etc."
+                    "description": "Dictionary with forensic metrics including stress level, pitch volatility, silence ratio, etc.",
                 },
                 "example": """
 from pathlib import Path
@@ -37,66 +31,52 @@ from src.forensics import ForensicsEngine
 engine = ForensicsEngine(use_cache=True)
 result = engine.analyze(Path("audio/test.wav"))
 print(f"Stress Level: {result['stress_level']}")
-                """
+                """,
             },
             "batch_analyze": {
                 "description": "Analyze multiple audio files sequentially",
                 "parameters": {
-                    "file_paths": {
-                        "type": "List[Path]",
-                        "description": "List of paths to audio files",
-                        "required": True
-                    },
+                    "file_paths": {"type": "List[Path]", "description": "List of paths to audio files", "required": True},
                     "progress_callback": {
                         "type": "Optional[Callable]",
                         "description": "Optional callback for progress updates",
-                        "required": False
-                    }
+                        "required": False,
+                    },
                 },
-                "returns": {
-                    "type": "List[Dict]",
-                    "description": "List of analysis results"
-                },
+                "returns": {"type": "List[Dict]", "description": "List of analysis results"},
                 "example": """
 def progress(current, total, filename):
     print(f"Processing {current}/{total}: {filename}")
 
 results = engine.batch_analyze(file_paths, progress_callback=progress)
-                """
+                """,
             },
             "batch_analyze_parallel": {
                 "description": "Analyze multiple audio files in parallel",
                 "parameters": {
-                    "file_paths": {
-                        "type": "List[Path]",
-                        "description": "List of paths to audio files",
-                        "required": True
-                    },
+                    "file_paths": {"type": "List[Path]", "description": "List of paths to audio files", "required": True},
                     "max_workers": {
                         "type": "int",
                         "description": "Maximum number of worker threads",
                         "required": False,
-                        "default": 4
+                        "default": 4,
                     },
                     "progress_callback": {
                         "type": "Optional[Callable]",
                         "description": "Optional callback for progress updates",
-                        "required": False
-                    }
+                        "required": False,
+                    },
                 },
-                "returns": {
-                    "type": "List[Dict]",
-                    "description": "List of analysis results"
-                },
+                "returns": {"type": "List[Dict]", "description": "List of analysis results"},
                 "example": """
 results = engine.batch_analyze_parallel(
     file_paths,
     max_workers=4,
     progress_callback=progress
 )
-                """
-            }
-        }
+                """,
+            },
+        },
     }
 
     AI_ANALYZER_API = {
@@ -106,16 +86,10 @@ results = engine.batch_analyze_parallel(
         "methods": {
             "analyze_message": {
                 "description": "Analyze single message for toxicity, emotion, and patterns",
-                "parameters": {
-                    "text": {
-                        "type": "str",
-                        "description": "Message text to analyze",
-                        "required": True
-                    }
-                },
+                "parameters": {"text": {"type": "str", "description": "Message text to analyze", "required": True}},
                 "returns": {
                     "type": "Dict",
-                    "description": "Analysis result with emotion, toxicity_score, aggression_level, confidence"
+                    "description": "Analysis result with emotion, toxicity_score, aggression_level, confidence",
                 },
                 "example": """
 from src.ai_analyzer import AIAnalyzer
@@ -124,7 +98,7 @@ analyzer = AIAnalyzer()
 result = analyzer.analyze_message("This is a test message")
 print(f"Emotion: {result['emotion']}")
 print(f"Toxicity: {result['toxicity_score']}")
-                """
+                """,
             },
             "analyze_conversation": {
                 "description": "Analyze entire conversation for patterns and dynamics",
@@ -132,12 +106,12 @@ print(f"Toxicity: {result['toxicity_score']}")
                     "messages": {
                         "type": "List[Dict]",
                         "description": "List of message dicts with 'sender' and 'text' keys",
-                        "required": True
+                        "required": True,
                     }
                 },
                 "returns": {
                     "type": "Dict",
-                    "description": "Conversation analysis with tone, power dynamics, communication style"
+                    "description": "Conversation analysis with tone, power dynamics, communication style",
                 },
                 "example": """
 messages = [
@@ -146,42 +120,28 @@ messages = [
 ]
 result = analyzer.analyze_conversation(messages)
 print(f"Overall Tone: {result['overall_tone']}")
-                """
+                """,
             },
             "detect_contradictions": {
                 "description": "Detect contradictions and inconsistencies in conversation",
                 "parameters": {
-                    "messages": {
-                        "type": "List[Dict]",
-                        "description": "List of message dictionaries",
-                        "required": True
-                    }
+                    "messages": {"type": "List[Dict]", "description": "List of message dictionaries", "required": True}
                 },
-                "returns": {
-                    "type": "Dict",
-                    "description": "Contradictions with statements and explanations"
-                }
+                "returns": {"type": "Dict", "description": "Contradictions with statements and explanations"},
             },
             "generate_psychological_profile": {
                 "description": "Generate comprehensive psychological profile",
                 "parameters": {
-                    "messages": {
-                        "type": "List[Dict]",
-                        "description": "List of message dictionaries",
-                        "required": True
-                    },
+                    "messages": {"type": "List[Dict]", "description": "List of message dictionaries", "required": True},
                     "forensics_data": {
                         "type": "Optional[List[Dict]]",
                         "description": "Optional forensic analysis results",
-                        "required": False
-                    }
+                        "required": False,
+                    },
                 },
-                "returns": {
-                    "type": "Dict",
-                    "description": "Psychological profile with traits, patterns, risk assessment"
-                }
-            }
-        }
+                "returns": {"type": "Dict", "description": "Psychological profile with traits, patterns, risk assessment"},
+            },
+        },
     }
 
     DATABASE_API = {
@@ -192,48 +152,31 @@ print(f"Overall Tone: {result['overall_tone']}")
             "store_analysis_result": {
                 "description": "Store forensic analysis result",
                 "parameters": {
-                    "case_id": {
-                        "type": "str",
-                        "description": "Case identifier",
-                        "required": True
-                    },
-                    "result": {
-                        "type": "Dict",
-                        "description": "Analysis result dictionary",
-                        "required": True
-                    }
+                    "case_id": {"type": "str", "description": "Case identifier", "required": True},
+                    "result": {"type": "Dict", "description": "Analysis result dictionary", "required": True},
                 },
-                "returns": {
-                    "type": "bool",
-                    "description": "True if successful"
-                },
+                "returns": {"type": "bool", "description": "True if successful"},
                 "example": """
 from src.database import DatabaseManager
 
 db = DatabaseManager()
 success = db.store_analysis_result("CASE_001", result)
-                """
+                """,
             },
             "get_case_statistics": {
                 "description": "Get statistics for a case",
-                "parameters": {
-                    "case_id": {
-                        "type": "str",
-                        "description": "Case identifier",
-                        "required": True
-                    }
-                },
+                "parameters": {"case_id": {"type": "str", "description": "Case identifier", "required": True}},
                 "returns": {
                     "type": "Dict",
-                    "description": "Case statistics with message count, analysis count, average stress"
+                    "description": "Case statistics with message count, analysis count, average stress",
                 },
                 "example": """
 stats = db.get_case_statistics("CASE_001")
 print(f"Total Messages: {stats['total_messages']}")
 print(f"Average Stress: {stats['average_stress_level']}")
-                """
-            }
-        }
+                """,
+            },
+        },
     }
 
     CACHE_API = {
@@ -243,44 +186,24 @@ print(f"Average Stress: {stats['average_stress_level']}")
         "methods": {
             "get": {
                 "description": "Get cached analysis result",
-                "parameters": {
-                    "file_path": {
-                        "type": "Path",
-                        "description": "Path to audio file",
-                        "required": True
-                    }
-                },
-                "returns": {
-                    "type": "Optional[Dict]",
-                    "description": "Cached result or None if not found"
-                },
+                "parameters": {"file_path": {"type": "Path", "description": "Path to audio file", "required": True}},
+                "returns": {"type": "Optional[Dict]", "description": "Cached result or None if not found"},
                 "example": """
 from src.cache import AnalysisCache
 
 cache = AnalysisCache()
 result = cache.get(Path("audio/test.wav"))
-                """
+                """,
             },
             "set": {
                 "description": "Store analysis result in cache",
                 "parameters": {
-                    "file_path": {
-                        "type": "Path",
-                        "description": "Path to audio file",
-                        "required": True
-                    },
-                    "result": {
-                        "type": "Dict",
-                        "description": "Analysis result to cache",
-                        "required": True
-                    }
+                    "file_path": {"type": "Path", "description": "Path to audio file", "required": True},
+                    "result": {"type": "Dict", "description": "Analysis result to cache", "required": True},
                 },
-                "returns": {
-                    "type": "bool",
-                    "description": "True if successful"
-                }
-            }
-        }
+                "returns": {"type": "bool", "description": "True if successful"},
+            },
+        },
     }
 
     HEALTH_API = {
@@ -290,10 +213,7 @@ result = cache.get(Path("audio/test.wav"))
         "methods": {
             "get_status_summary": {
                 "description": "Get brief health status summary",
-                "returns": {
-                    "type": "Dict",
-                    "description": "Status summary with CPU, memory, disk, and service status"
-                },
+                "returns": {"type": "Dict", "description": "Status summary with CPU, memory, disk, and service status"},
                 "example": """
 from src.health import HealthChecker
 
@@ -301,23 +221,17 @@ checker = HealthChecker()
 status = checker.get_status_summary()
 print(f"Overall Status: {status['overall_status']}")
 print(f"CPU: {status['cpu_percent']:.1f}%")
-                """
+                """,
             },
             "get_full_health_status": {
                 "description": "Get complete system health status",
-                "returns": {
-                    "type": "Dict",
-                    "description": "Detailed health status with all checks"
-                }
+                "returns": {"type": "Dict", "description": "Detailed health status with all checks"},
             },
             "get_diagnostics": {
                 "description": "Get complete diagnostics information",
-                "returns": {
-                    "type": "Dict",
-                    "description": "Diagnostics including health, performance, and system info"
-                }
-            }
-        }
+                "returns": {"type": "Dict", "description": "Diagnostics including health, performance, and system info"},
+            },
+        },
     }
 
     DIARIZATION_API = {
@@ -328,22 +242,15 @@ print(f"CPU: {status['cpu_percent']:.1f}%")
             "diarize": {
                 "description": "Perform speaker diarization",
                 "parameters": {
-                    "audio": {
-                        "type": "np.ndarray",
-                        "description": "Audio signal",
-                        "required": True
-                    },
+                    "audio": {"type": "np.ndarray", "description": "Audio signal", "required": True},
                     "num_speakers": {
                         "type": "int",
                         "description": "Expected number of speakers",
                         "required": False,
-                        "default": 2
-                    }
+                        "default": 2,
+                    },
                 },
-                "returns": {
-                    "type": "List[Dict]",
-                    "description": "List of speaker segments with timing and speaker ID"
-                },
+                "returns": {"type": "List[Dict]", "description": "List of speaker segments with timing and speaker ID"},
                 "example": """
 from src.diarization import DiarizationPipeline
 import numpy as np
@@ -352,23 +259,16 @@ diarizer = DiarizationPipeline()
 segments = diarizer.diarize(audio, num_speakers=2)
 for seg in segments:
     print(f"{seg['speaker']}: {seg['start']:.2f}s - {seg['end']:.2f}s")
-                """
+                """,
             },
             "get_speaker_statistics": {
                 "description": "Get speaker statistics",
                 "parameters": {
-                    "segments": {
-                        "type": "List[Dict]",
-                        "description": "List of speaker segments",
-                        "required": True
-                    }
+                    "segments": {"type": "List[Dict]", "description": "List of speaker segments", "required": True}
                 },
-                "returns": {
-                    "type": "Dict",
-                    "description": "Speaker statistics with duration and percentage"
-                }
-            }
-        }
+                "returns": {"type": "Dict", "description": "Speaker statistics with duration and percentage"},
+            },
+        },
     }
 
     MODELS_API = {
@@ -387,8 +287,8 @@ for seg in segments:
                     "intensity": "IntensityMetrics - Intensity metrics",
                     "mfcc_variance": "float - MFCC variance",
                     "zero_crossing_rate": "float - Zero crossing rate",
-                    "spectral_centroid": "float - Spectral centroid in Hz"
-                }
+                    "spectral_centroid": "float - Spectral centroid in Hz",
+                },
             },
             "Message": {
                 "description": "WhatsApp message",
@@ -396,8 +296,8 @@ for seg in segments:
                     "timestamp": "datetime - Message timestamp",
                     "sender": "str - Message sender",
                     "text": "str - Message text",
-                    "message_type": "str - Type (text, image, audio, video, media, link)"
-                }
+                    "message_type": "str - Type (text, image, audio, video, media, link)",
+                },
             },
             "ConversationAnalysis": {
                 "description": "Conversation-level analysis",
@@ -406,8 +306,8 @@ for seg in segments:
                     "overall_tone": "str - Overall tone (positive, negative, neutral, mixed)",
                     "power_dynamics": "str - Power dynamics (balanced, one_sided, abusive)",
                     "conflict_level": "float - Conflict level (0-1)",
-                    "manipulation_indicators": "List[str] - Detected manipulation patterns"
-                }
+                    "manipulation_indicators": "List[str] - Detected manipulation patterns",
+                },
             },
             "PsychologicalProfile": {
                 "description": "Psychological profile",
@@ -416,10 +316,10 @@ for seg in segments:
                     "communication_patterns": "List[str] - Communication patterns",
                     "emotional_regulation": "str - Emotional regulation level",
                     "stress_indicators": "List[str] - Stress indicators",
-                    "risk_assessment": "str - Risk level (low, medium, high)"
-                }
-            }
-        }
+                    "risk_assessment": "str - Risk level (low, medium, high)",
+                },
+            },
+        },
     }
 
     @classmethod
@@ -432,7 +332,7 @@ for seg in segments:
             "cache": cls.CACHE_API,
             "health": cls.HEALTH_API,
             "diarization": cls.DIARIZATION_API,
-            "models": cls.MODELS_API
+            "models": cls.MODELS_API,
         }
 
     @classmethod

@@ -11,20 +11,21 @@ This module brings together:
 - Chat parsing (WhatsApp export processing)
 """
 
+import json
 import logging
-from typing import Dict, List, Optional, Any, Tuple
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from enum import Enum
-import json
-import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class SourceType(Enum):
     """Type of evidence source"""
+
     CHAT_TEXT = "chat_text"
     VOICE_NOTE = "voice_note"
     TRANSCRIPTION = "transcription"
@@ -35,6 +36,7 @@ class SourceType(Enum):
 
 class EvidenceStatus(Enum):
     """Status of evidence verification"""
+
     VERIFIED = "verified"
     PENDING = "pending"
     FLAGGED = "flagged"
@@ -44,30 +46,31 @@ class EvidenceStatus(Enum):
 @dataclass
 class UnifiedEntry:
     """Single entry in unified timeline with all analysis"""
+
     entry_id: str
     timestamp: datetime
     source_type: SourceType
     sender: str
-    
+
     # Content
     original_text: str
     translated_text: Optional[str] = None
     file_path: Optional[str] = None
-    
+
     # Analysis results
     text_analysis: Dict[str, Any] = field(default_factory=dict)
     audio_analysis: Dict[str, Any] = field(default_factory=dict)
     afrikaans_verification: Dict[str, Any] = field(default_factory=dict)
-    
+
     # Forensic flags
     forensic_flags: List[str] = field(default_factory=list)
     risk_score: float = 0.0
-    
+
     # Verification
     status: EvidenceStatus = EvidenceStatus.PENDING
     verification_notes: List[str] = field(default_factory=list)
     confidence: float = 0.0
-    
+
     def to_dict(self) -> Dict:
         return {
             'entry_id': self.entry_id,
@@ -84,35 +87,36 @@ class UnifiedEntry:
             'risk_score': self.risk_score,
             'status': self.status.value,
             'verification_notes': self.verification_notes,
-            'confidence': self.confidence
+            'confidence': self.confidence,
         }
 
 
 @dataclass
 class UnifiedReport:
     """Complete unified analysis report"""
+
     report_id: str
     case_name: str
     generated_at: str
-    
+
     # Statistics
     total_entries: int
     entries_by_source: Dict[str, int]
     entries_by_sender: Dict[str, int]
     date_range: Dict[str, str]
-    
+
     # Unified timeline
     timeline: List[UnifiedEntry]
-    
+
     # Combined analysis
     text_forensics_summary: Dict[str, Any]
     audio_forensics_summary: Dict[str, Any]
     psychological_summary: Dict[str, Any]
-    
+
     # Risk assessment
     overall_risk: Dict[str, Any]
     critical_findings: List[Dict[str, Any]]
-    
+
     # Recommendations
     recommendations: List[str]
 
@@ -128,7 +132,7 @@ class UnifiedAnalyzer:
         self.entry_counter = 0
         self.report_counter = 0
         self.entries: List[UnifiedEntry] = []
-        
+
         # Initialize sub-analyzers
         self._init_analyzers()
 
@@ -137,6 +141,7 @@ class UnifiedAnalyzer:
         # Text forensics
         try:
             from text_forensics import TextForensicsEngine, TextMessage
+
             self.text_forensics = TextForensicsEngine()
             self.TextMessage = TextMessage
             logger.info("Text forensics engine loaded")
@@ -147,6 +152,7 @@ class UnifiedAnalyzer:
         # Audio forensics
         try:
             from forensics import ForensicsEngine
+
             self.audio_forensics = ForensicsEngine()
             logger.info("Audio forensics engine loaded")
         except ImportError as e:
@@ -156,6 +162,7 @@ class UnifiedAnalyzer:
         # Afrikaans processor
         try:
             from afrikaans_processor import AfrikaansProcessor
+
             self.afrikaans_processor = AfrikaansProcessor()
             logger.info("Afrikaans processor loaded")
         except ImportError as e:
@@ -165,6 +172,7 @@ class UnifiedAnalyzer:
         # Timeline reconstructor
         try:
             from timeline_reconstruction import TimelineReconstructor
+
             self.timeline_reconstructor = TimelineReconstructor()
             logger.info("Timeline reconstructor loaded")
         except ImportError as e:
@@ -174,6 +182,7 @@ class UnifiedAnalyzer:
         # Chat parser
         try:
             from chat_parser import ChatParser
+
             self.chat_parser = ChatParser()
             logger.info("Chat parser loaded")
         except ImportError as e:
@@ -183,6 +192,7 @@ class UnifiedAnalyzer:
         # AI Analyzer
         try:
             from ai_analyzer import AIAnalyzer
+
             self.ai_analyzer = AIAnalyzer()
             logger.info("AI analyzer loaded")
         except ImportError as e:
@@ -205,25 +215,25 @@ class UnifiedAnalyzer:
 
         try:
             messages = self.chat_parser.parse_file(str(file_path))
-            
+
             for msg in messages:
                 self.entry_counter += 1
-                
+
                 entry = UnifiedEntry(
                     entry_id=f"UE_{self.entry_counter:06d}",
                     timestamp=msg.get('timestamp', datetime.now()),
                     source_type=SourceType.CHAT_TEXT,
                     sender=msg.get('sender', 'Unknown'),
                     original_text=msg.get('message', ''),
-                    file_path=str(file_path)
+                    file_path=str(file_path),
                 )
-                
+
                 # Check if media message
                 if '<Media omitted>' in entry.original_text or entry.original_text.startswith('['):
                     entry.source_type = SourceType.VOICE_NOTE  # Could be voice note
-                
+
                 self.entries.append(entry)
-            
+
             logger.info(f"Loaded {len(messages)} messages from chat export")
             return len(messages)
 
@@ -247,13 +257,12 @@ class UnifiedAnalyzer:
 
         try:
             entries = self.timeline_reconstructor.add_files_from_directory(
-                directory,
-                extensions=['.opus', '.ogg', '.mp3', '.m4a', '.wav']
+                directory, extensions=['.opus', '.ogg', '.mp3', '.m4a', '.wav']
             )
-            
+
             for tl_entry in entries:
                 self.entry_counter += 1
-                
+
                 entry = UnifiedEntry(
                     entry_id=f"UE_{self.entry_counter:06d}",
                     timestamp=tl_entry.timestamp,
@@ -261,11 +270,11 @@ class UnifiedAnalyzer:
                     sender=tl_entry.speaker_id or 'Unknown',
                     original_text=tl_entry.transcription or '',
                     translated_text=tl_entry.translation,
-                    file_path=tl_entry.file_path
+                    file_path=tl_entry.file_path,
                 )
-                
+
                 self.entries.append(entry)
-            
+
             logger.info(f"Loaded {len(entries)} voice notes")
             return len(entries)
 
@@ -284,9 +293,9 @@ class UnifiedAnalyzer:
             Number of notes transcribed
         """
         transcribed = 0
-        
+
         voice_entries = [e for e in self.entries if e.source_type == SourceType.VOICE_NOTE]
-        
+
         for entry in voice_entries:
             if not entry.file_path or entry.original_text:
                 continue  # Already has text or no file
@@ -302,19 +311,17 @@ class UnifiedAnalyzer:
                 # Verify Afrikaans if enabled
                 if use_afrikaans and self.afrikaans_processor and entry.original_text:
                     verification = self.afrikaans_processor.process_text(
-                        entry.original_text,
-                        speaker_id=entry.sender,
-                        audio_layer="foreground"
+                        entry.original_text, speaker_id=entry.sender, audio_layer="foreground"
                     )
-                    
+
                     entry.translated_text = verification.translated_english
                     entry.afrikaans_verification = {
                         'confidence': verification.overall_confidence,
                         'confidence_level': verification.overall_confidence_level.value,
                         'requires_review': verification.requires_human_review,
-                        'all_checks_passed': verification.all_checks_passed
+                        'all_checks_passed': verification.all_checks_passed,
                     }
-                    
+
                     if verification.requires_human_review:
                         entry.forensic_flags.append("AFRIKAANS_REVIEW_REQUIRED")
                         entry.status = EvidenceStatus.FLAGGED
@@ -344,19 +351,18 @@ class UnifiedAnalyzer:
             text_messages = []
             for entry in self.entries:
                 if entry.original_text:
-                    text_messages.append(self.TextMessage(
-                        message_id=entry.entry_id,
-                        timestamp=entry.timestamp,
-                        sender=entry.sender,
-                        text=entry.original_text
-                    ))
+                    text_messages.append(
+                        self.TextMessage(
+                            message_id=entry.entry_id, timestamp=entry.timestamp, sender=entry.sender, text=entry.original_text
+                        )
+                    )
 
             if not text_messages:
                 return {'error': 'No text messages to analyze'}
 
             # Run analysis
             report = self.text_forensics.analyze_conversation(text_messages)
-            
+
             # Update entries with findings
             for finding in report.findings:
                 for msg_id in finding.message_ids:
@@ -364,7 +370,7 @@ class UnifiedAnalyzer:
                         if entry.entry_id == msg_id:
                             entry.forensic_flags.append(f"{finding.analysis_type.value}:{finding.title}")
                             entry.risk_score = max(entry.risk_score, finding.confidence * 100)
-                            
+
                             if finding.severity.value in ['critical', 'high']:
                                 entry.status = EvidenceStatus.FLAGGED
 
@@ -384,36 +390,35 @@ class UnifiedAnalyzer:
         if not self.audio_forensics:
             return {'error': 'Audio forensics not available'}
 
-        results = {
-            'analyzed': 0,
-            'high_stress': 0,
-            'entries': []
-        }
+        results = {'analyzed': 0, 'high_stress': 0, 'entries': []}
 
-        voice_entries = [e for e in self.entries if e.file_path and 
-                        e.source_type in [SourceType.VOICE_NOTE, SourceType.TRANSCRIPTION]]
+        voice_entries = [
+            e for e in self.entries if e.file_path and e.source_type in [SourceType.VOICE_NOTE, SourceType.TRANSCRIPTION]
+        ]
 
         for entry in voice_entries:
             try:
                 analysis = self.audio_forensics.analyze(Path(entry.file_path))
-                
+
                 if analysis:
                     entry.audio_analysis = analysis
                     results['analyzed'] += 1
-                    
+
                     # Check stress level
                     stress = analysis.get('stress_level', 0)
                     if stress > 50:
                         results['high_stress'] += 1
                         entry.forensic_flags.append(f"HIGH_STRESS:{stress:.0f}")
                         entry.status = EvidenceStatus.FLAGGED
-                    
-                    results['entries'].append({
-                        'entry_id': entry.entry_id,
-                        'stress_level': stress,
-                        'pitch_volatility': analysis.get('pitch_volatility', 0),
-                        'silence_ratio': analysis.get('silence_ratio', 0)
-                    })
+
+                    results['entries'].append(
+                        {
+                            'entry_id': entry.entry_id,
+                            'stress_level': stress,
+                            'pitch_volatility': analysis.get('pitch_volatility', 0),
+                            'silence_ratio': analysis.get('silence_ratio', 0),
+                        }
+                    )
 
             except Exception as e:
                 logger.error(f"Audio analysis error for {entry.entry_id}: {e}")
@@ -435,26 +440,20 @@ class UnifiedAnalyzer:
             messages = []
             for entry in sorted(self.entries, key=lambda x: x.timestamp):
                 if entry.original_text:
-                    messages.append({
-                        'sender': entry.sender,
-                        'text': entry.original_text,
-                        'timestamp': entry.timestamp.isoformat()
-                    })
+                    messages.append(
+                        {'sender': entry.sender, 'text': entry.original_text, 'timestamp': entry.timestamp.isoformat()}
+                    )
 
             if not messages:
                 return {'error': 'No messages to analyze'}
 
             # Run psychological profile
             profile = self.ai_analyzer.generate_psychological_profile(messages)
-            
+
             # Detect contradictions
             contradictions = self.ai_analyzer.detect_contradictions(messages)
-            
-            return {
-                'psychological_profile': profile,
-                'contradictions': contradictions,
-                'message_count': len(messages)
-            }
+
+            return {'psychological_profile': profile, 'contradictions': contradictions, 'message_count': len(messages)}
 
         except Exception as e:
             logger.error(f"Psychological analysis error: {e}")
@@ -505,7 +504,7 @@ class UnifiedAnalyzer:
         """
         self.report_counter += 1
         report_id = f"UR_{self.report_counter:06d}"
-        
+
         logger.info(f"Generating unified report: {report_id}")
 
         # Run all analyses
@@ -516,7 +515,7 @@ class UnifiedAnalyzer:
         # Calculate statistics
         by_source = {}
         by_sender = {}
-        
+
         for entry in self.entries:
             src = entry.source_type.value
             by_source[src] = by_source.get(src, 0) + 1
@@ -526,25 +525,27 @@ class UnifiedAnalyzer:
         timestamps = [e.timestamp for e in self.entries]
         date_range = {
             'start': min(timestamps).isoformat() if timestamps else '',
-            'end': max(timestamps).isoformat() if timestamps else ''
+            'end': max(timestamps).isoformat() if timestamps else '',
         }
 
         # Critical findings
         critical_findings = []
         flagged = [e for e in self.entries if e.status == EvidenceStatus.FLAGGED]
         for entry in sorted(flagged, key=lambda x: x.risk_score, reverse=True)[:10]:
-            critical_findings.append({
-                'entry_id': entry.entry_id,
-                'timestamp': entry.timestamp.isoformat(),
-                'sender': entry.sender,
-                'flags': entry.forensic_flags,
-                'risk_score': entry.risk_score
-            })
+            critical_findings.append(
+                {
+                    'entry_id': entry.entry_id,
+                    'timestamp': entry.timestamp.isoformat(),
+                    'sender': entry.sender,
+                    'flags': entry.forensic_flags,
+                    'risk_score': entry.risk_score,
+                }
+            )
 
         # Overall risk assessment
         avg_risk = sum(e.risk_score for e in self.entries) / max(len(self.entries), 1)
         flagged_count = len(flagged)
-        
+
         if avg_risk > 70 or flagged_count > len(self.entries) * 0.3:
             risk_level = "CRITICAL"
         elif avg_risk > 50 or flagged_count > len(self.entries) * 0.2:
@@ -558,13 +559,11 @@ class UnifiedAnalyzer:
             'level': risk_level,
             'average_risk_score': avg_risk,
             'flagged_entries': flagged_count,
-            'total_entries': len(self.entries)
+            'total_entries': len(self.entries),
         }
 
         # Recommendations
-        recommendations = self._generate_recommendations(
-            text_summary, audio_summary, psych_summary, overall_risk
-        )
+        recommendations = self._generate_recommendations(text_summary, audio_summary, psych_summary, overall_risk)
 
         return UnifiedReport(
             report_id=report_id,
@@ -580,16 +579,10 @@ class UnifiedAnalyzer:
             psychological_summary=psych_summary,
             overall_risk=overall_risk,
             critical_findings=critical_findings,
-            recommendations=recommendations
+            recommendations=recommendations,
         )
 
-    def _generate_recommendations(
-        self,
-        text_summary: Dict,
-        audio_summary: Dict,
-        psych_summary: Dict,
-        risk: Dict
-    ) -> List[str]:
+    def _generate_recommendations(self, text_summary: Dict, audio_summary: Dict, psych_summary: Dict, risk: Dict) -> List[str]:
         """Generate recommendations based on analysis"""
         recommendations = []
 
@@ -605,7 +598,9 @@ class UnifiedAnalyzer:
 
         # Audio recommendations
         if audio_summary.get('high_stress', 0) > 0:
-            recommendations.append(f"High stress detected in {audio_summary['high_stress']} voice notes - correlate with timeline")
+            recommendations.append(
+                f"High stress detected in {audio_summary['high_stress']} voice notes - correlate with timeline"
+            )
 
         # Psychological recommendations
         if psych_summary.get('psychological_profile'):
@@ -651,9 +646,9 @@ class UnifiedAnalyzer:
                     'psychological_summary': report.psychological_summary,
                     'overall_risk': report.overall_risk,
                     'critical_findings': report.critical_findings,
-                    'recommendations': report.recommendations
+                    'recommendations': report.recommendations,
                 }
-                
+
                 with open(output_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, default=str)
 
@@ -686,7 +681,7 @@ class UnifiedAnalyzer:
             f"- **Risk Level:** {report.overall_risk.get('level', 'Unknown')}",
             f"\n## Entries by Source",
         ]
-        
+
         for src, count in report.entries_by_source.items():
             lines.append(f"- {src}: {count}")
 
@@ -715,13 +710,8 @@ class UnifiedAnalyzer:
 
     def _generate_html_report(self, report: UnifiedReport) -> str:
         """Generate HTML report"""
-        risk_colors = {
-            'CRITICAL': '#e74c3c',
-            'HIGH': '#e67e22',
-            'MEDIUM': '#f1c40f',
-            'LOW': '#27ae60'
-        }
-        
+        risk_colors = {'CRITICAL': '#e74c3c', 'HIGH': '#e67e22', 'MEDIUM': '#f1c40f', 'LOW': '#27ae60'}
+
         risk_level = report.overall_risk.get('level', 'LOW')
         risk_color = risk_colors.get(risk_level, '#95a5a6')
 
@@ -773,25 +763,25 @@ class UnifiedAnalyzer:
         <table>
             <tr><th>Source</th><th>Count</th></tr>
 """
-        
+
         for src, count in report.entries_by_source.items():
             html += f"            <tr><td>{src}</td><td>{count}</td></tr>\n"
-        
+
         html += """        </table>
         
         <h2>Entries by Sender</h2>
         <table>
             <tr><th>Sender</th><th>Count</th></tr>
 """
-        
+
         for sender, count in report.entries_by_sender.items():
             html += f"            <tr><td>{sender}</td><td>{count}</td></tr>\n"
-        
+
         html += """        </table>
         
         <h2>Critical Findings</h2>
 """
-        
+
         for finding in report.critical_findings:
             html += f"""        <div class="finding">
             <strong>{finding.get('entry_id', '')}</strong> - {finding.get('sender', '')} ({finding.get('timestamp', '')})<br>
@@ -799,17 +789,17 @@ class UnifiedAnalyzer:
             Flags: {', '.join(finding.get('flags', []))}
         </div>
 """
-        
+
         html += """        <h2>Recommendations</h2>
 """
-        
+
         for rec in report.recommendations:
             html += f'        <div class="recommendation">{rec}</div>\n'
-        
+
         html += """    </div>
 </body>
 </html>"""
-        
+
         return html
 
 

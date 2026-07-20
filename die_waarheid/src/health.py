@@ -4,22 +4,13 @@ System health status, performance metrics, and diagnostics
 """
 
 import logging
-import psutil
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional
-from datetime import datetime
 
-from config import (
-    APP_NAME,
-    APP_VERSION,
-    AUDIO_DIR,
-    TEXT_DIR,
-    TEMP_DIR,
-    REPORTS_DIR,
-    CREDENTIALS_DIR,
-    GEMINI_API_KEY
-)
+import psutil
+from config import APP_NAME, APP_VERSION, AUDIO_DIR, CREDENTIALS_DIR, GEMINI_API_KEY, REPORTS_DIR, TEMP_DIR, TEXT_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +41,16 @@ class HealthChecker:
             return {
                 'cpu_percent': cpu_percent,
                 'cpu_status': 'healthy' if cpu_percent < 80 else 'warning' if cpu_percent < 95 else 'critical',
-                'memory_available_mb': memory.available / (1024 ** 2),
+                'memory_available_mb': memory.available / (1024**2),
                 'memory_percent': memory.percent,
                 'memory_status': 'healthy' if memory.percent < 80 else 'warning' if memory.percent < 95 else 'critical',
-                'disk_available_gb': disk.free / (1024 ** 3),
+                'disk_available_gb': disk.free / (1024**3),
                 'disk_percent': (disk.used / disk.total) * 100,
-                'disk_status': 'healthy' if (disk.free / disk.total) > 0.1 else 'warning' if (disk.free / disk.total) > 0.05 else 'critical'
+                'disk_status': (
+                    'healthy'
+                    if (disk.free / disk.total) > 0.1
+                    else 'warning' if (disk.free / disk.total) > 0.05 else 'critical'
+                ),
             }
 
         except Exception as e:
@@ -74,7 +69,7 @@ class HealthChecker:
             'text': TEXT_DIR,
             'temp': TEMP_DIR,
             'reports': REPORTS_DIR,
-            'credentials': CREDENTIALS_DIR
+            'credentials': CREDENTIALS_DIR,
         }
 
         results = {}
@@ -87,14 +82,10 @@ class HealthChecker:
                     'path': str(path),
                     'exists': exists,
                     'writable': writable,
-                    'status': 'healthy' if exists and writable else 'warning'
+                    'status': 'healthy' if exists and writable else 'warning',
                 }
             except Exception as e:
-                results[name] = {
-                    'path': str(path),
-                    'error': str(e),
-                    'status': 'error'
-                }
+                results[name] = {'path': str(path), 'error': str(e), 'status': 'error'}
 
         return results
 
@@ -113,22 +104,16 @@ class HealthChecker:
             'streamlit': 'streamlit',
             'plotly': 'plotly',
             'sqlalchemy': 'sqlalchemy',
-            'pydantic': 'pydantic'
+            'pydantic': 'pydantic',
         }
 
         results = {}
         for package_name, import_name in dependencies.items():
             try:
                 __import__(import_name)
-                results[package_name] = {
-                    'installed': True,
-                    'status': 'healthy'
-                }
+                results[package_name] = {'installed': True, 'status': 'healthy'}
             except ImportError:
-                results[package_name] = {
-                    'installed': False,
-                    'status': 'warning'
-                }
+                results[package_name] = {'installed': False, 'status': 'warning'}
 
         return results
 
@@ -143,7 +128,7 @@ class HealthChecker:
             'app_name': APP_NAME,
             'app_version': APP_VERSION,
             'gemini_configured': bool(GEMINI_API_KEY),
-            'credentials_available': Path(CREDENTIALS_DIR).exists()
+            'credentials_available': Path(CREDENTIALS_DIR).exists(),
         }
 
         if not GEMINI_API_KEY:
@@ -166,23 +151,13 @@ class HealthChecker:
             db = DatabaseManager()
             if db.engine:
                 db.close()
-                return {
-                    'connected': True,
-                    'status': 'healthy'
-                }
+                return {'connected': True, 'status': 'healthy'}
             else:
-                return {
-                    'connected': False,
-                    'status': 'error'
-                }
+                return {'connected': False, 'status': 'error'}
 
         except Exception as e:
             logger.error(f"Error checking database: {str(e)}")
-            return {
-                'connected': False,
-                'error': str(e),
-                'status': 'error'
-            }
+            return {'connected': False, 'error': str(e), 'status': 'error'}
 
     def get_full_health_status(self) -> Dict:
         """
@@ -200,9 +175,7 @@ class HealthChecker:
             configuration = self.check_configuration()
             database = self.check_database()
 
-            overall_status = self._determine_overall_status(
-                resources, directories, dependencies, configuration, database
-            )
+            overall_status = self._determine_overall_status(resources, directories, dependencies, configuration, database)
 
             self.check_results = {
                 'timestamp': self.last_check.isoformat(),
@@ -211,17 +184,14 @@ class HealthChecker:
                 'directories': directories,
                 'dependencies': dependencies,
                 'configuration': configuration,
-                'database': database
+                'database': database,
             }
 
             return self.check_results
 
         except Exception as e:
             logger.error(f"Error getting full health status: {str(e)}")
-            return {
-                'error': str(e),
-                'overall_status': 'error'
-            }
+            return {'error': str(e), 'overall_status': 'error'}
 
     def _determine_overall_status(self, *checks) -> str:
         """
@@ -271,7 +241,7 @@ class HealthChecker:
             'memory_percent': full_status.get('system_resources', {}).get('memory_percent'),
             'disk_available_gb': full_status.get('system_resources', {}).get('disk_available_gb'),
             'gemini_configured': full_status.get('configuration', {}).get('gemini_configured'),
-            'database_connected': full_status.get('database', {}).get('connected')
+            'database_connected': full_status.get('database', {}).get('connected'),
         }
 
     def get_performance_metrics(self) -> Dict:
@@ -286,10 +256,10 @@ class HealthChecker:
 
             return {
                 'cpu_percent': process.cpu_percent(interval=0.1),
-                'memory_mb': process.memory_info().rss / (1024 ** 2),
+                'memory_mb': process.memory_info().rss / (1024**2),
                 'num_threads': process.num_threads(),
                 'open_files': len(process.open_files()),
-                'create_time': datetime.fromtimestamp(process.create_time()).isoformat()
+                'create_time': datetime.fromtimestamp(process.create_time()).isoformat(),
             }
 
         except Exception as e:
@@ -310,8 +280,8 @@ class HealthChecker:
             'system_info': {
                 'platform': __import__('platform').platform(),
                 'python_version': __import__('sys').version,
-                'processor': __import__('platform').processor()
-            }
+                'processor': __import__('platform').processor(),
+            },
         }
 
 

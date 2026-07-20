@@ -21,9 +21,9 @@ CORE MODULES:
 """
 
 import logging
-from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,7 @@ class IntegrationOrchestrator:
         # Core modules
         try:
             from unified_analyzer import UnifiedAnalyzer
+
             self.modules['unified_analyzer'] = UnifiedAnalyzer()
             logger.info("✓ Unified Analyzer loaded")
         except ImportError as e:
@@ -54,6 +55,7 @@ class IntegrationOrchestrator:
 
         try:
             from investigation_tracker import ContinuousInvestigationTracker
+
             self.modules['investigation_tracker'] = ContinuousInvestigationTracker()
             logger.info("✓ Investigation Tracker loaded")
         except ImportError as e:
@@ -61,6 +63,7 @@ class IntegrationOrchestrator:
 
         try:
             from expert_panel import ExpertPanelAnalyzer
+
             self.modules['expert_panel'] = ExpertPanelAnalyzer()
             logger.info("✓ Expert Panel loaded")
         except ImportError as e:
@@ -68,6 +71,7 @@ class IntegrationOrchestrator:
 
         try:
             from speaker_identification import SpeakerIdentificationSystem
+
             self.modules['speaker_identification'] = SpeakerIdentificationSystem()
             logger.info("✓ Speaker Identification loaded")
         except ImportError as e:
@@ -76,6 +80,7 @@ class IntegrationOrchestrator:
         # Recommended modules
         try:
             from alert_system import AlertSystem
+
             self.modules['alert_system'] = AlertSystem()
             logger.info("✓ Alert System loaded")
         except ImportError as e:
@@ -83,6 +88,7 @@ class IntegrationOrchestrator:
 
         try:
             from evidence_scoring import EvidenceScoringSystem
+
             self.modules['evidence_scoring'] = EvidenceScoringSystem()
             logger.info("✓ Evidence Scoring loaded")
         except ImportError as e:
@@ -90,6 +96,7 @@ class IntegrationOrchestrator:
 
         try:
             from investigative_checklist import InvestigativeChecklistGenerator
+
             self.modules['investigative_checklist'] = InvestigativeChecklistGenerator()
             logger.info("✓ Investigative Checklist loaded")
         except ImportError as e:
@@ -97,6 +104,7 @@ class IntegrationOrchestrator:
 
         try:
             from contradiction_timeline import ContradictionTimelineAnalyzer
+
             self.modules['contradiction_timeline'] = ContradictionTimelineAnalyzer()
             logger.info("✓ Contradiction Timeline loaded")
         except ImportError as e:
@@ -104,6 +112,7 @@ class IntegrationOrchestrator:
 
         try:
             from narrative_reconstruction import NarrativeReconstructor
+
             self.modules['narrative_reconstruction'] = NarrativeReconstructor()
             logger.info("✓ Narrative Reconstruction loaded")
         except ImportError as e:
@@ -111,6 +120,7 @@ class IntegrationOrchestrator:
 
         try:
             from comparative_psychology import ComparativePsychologyAnalyzer
+
             self.modules['comparative_psychology'] = ComparativePsychologyAnalyzer()
             logger.info("✓ Comparative Psychology loaded")
         except ImportError as e:
@@ -118,6 +128,7 @@ class IntegrationOrchestrator:
 
         try:
             from risk_escalation_matrix import RiskEscalationMatrix
+
             self.modules['risk_escalation_matrix'] = RiskEscalationMatrix()
             logger.info("✓ Risk Escalation Matrix loaded")
         except ImportError as e:
@@ -125,6 +136,7 @@ class IntegrationOrchestrator:
 
         try:
             from multilingual_support import MultilingualAnalyzer
+
             self.modules['multilingual_support'] = MultilingualAnalyzer()
             logger.info("✓ Multilingual Support loaded")
         except ImportError as e:
@@ -158,12 +170,7 @@ class IntegrationOrchestrator:
 
         return False
 
-    def add_evidence(
-        self,
-        evidence_type: str,
-        file_path: str,
-        description: str = ""
-    ) -> Optional[str]:
+    def add_evidence(self, evidence_type: str, file_path: str, description: str = "") -> Optional[str]:
         """
         Add evidence to case
 
@@ -185,10 +192,7 @@ class IntegrationOrchestrator:
         if 'investigation_tracker' in self.modules:
             try:
                 evidence_id = self.modules['investigation_tracker'].add_evidence(
-                    self.case_id,
-                    evidence_type,
-                    file_path,
-                    description
+                    self.case_id, evidence_type, file_path, description
                 )
                 logger.info(f"✓ Evidence added: {evidence_id}")
                 return evidence_id
@@ -211,11 +215,7 @@ class IntegrationOrchestrator:
 
         logger.info(f"Starting complete analysis for case {self.case_id}")
 
-        results = {
-            'case_id': self.case_id,
-            'timestamp': datetime.now().isoformat(),
-            'stages': {}
-        }
+        results = {'case_id': self.case_id, 'timestamp': datetime.now().isoformat(), 'stages': {}}
 
         # Stage 1: Unified Analysis
         logger.info("STAGE 1: Unified Analysis")
@@ -328,12 +328,7 @@ class IntegrationOrchestrator:
         try:
             analyzer = self.modules['unified_analyzer']
             # Analysis would happen here with actual evidence
-            return {
-                'status': 'completed',
-                'entries_analyzed': 0,
-                'sources': [],
-                'module': 'unified_analyzer'
-            }
+            return {'status': 'completed', 'entries_analyzed': 0, 'sources': [], 'module': 'unified_analyzer'}
         except Exception as e:
             logger.error(f"Unified analysis failed: {e}")
             return {'status': 'failed', 'error': str(e)}
@@ -345,12 +340,7 @@ class IntegrationOrchestrator:
 
         try:
             system = self.modules['speaker_identification']
-            return {
-                'status': 'completed',
-                'speakers_identified': 0,
-                'profiles': [],
-                'module': 'speaker_identification'
-            }
+            return {'status': 'completed', 'speakers_identified': 0, 'profiles': [], 'module': 'speaker_identification'}
         except Exception as e:
             logger.error(f"Speaker identification failed: {e}")
             return {'status': 'failed', 'error': str(e)}
@@ -366,7 +356,7 @@ class IntegrationOrchestrator:
                 'status': 'completed',
                 'experts': ['Linguistic', 'Psychological', 'Forensic', 'Audio', 'Investigative'],
                 'findings': [],
-                'module': 'expert_panel'
+                'module': 'expert_panel',
             }
         except Exception as e:
             logger.error(f"Expert panel analysis failed: {e}")
@@ -385,7 +375,7 @@ class IntegrationOrchestrator:
                 'evidence_scored': summary.get('total_evidence', 0),
                 'top_evidence': summary.get('top_evidence', []),
                 'average_strength': summary.get('average_strength', 0),
-                'module': 'evidence_scoring'
+                'module': 'evidence_scoring',
             }
         except Exception as e:
             logger.error(f"Evidence scoring failed: {e}")
@@ -403,7 +393,7 @@ class IntegrationOrchestrator:
                 'narratives': [],
                 'gaps_identified': 0,
                 'inconsistencies': 0,
-                'module': 'narrative_reconstruction'
+                'module': 'narrative_reconstruction',
             }
         except Exception as e:
             logger.error(f"Narrative reconstruction failed: {e}")
@@ -421,7 +411,7 @@ class IntegrationOrchestrator:
                 'profiles_built': 0,
                 'comparisons': 0,
                 'key_differences': [],
-                'module': 'comparative_psychology'
+                'module': 'comparative_psychology',
             }
         except Exception as e:
             logger.error(f"Comparative psychology failed: {e}")
@@ -439,7 +429,7 @@ class IntegrationOrchestrator:
                 'risk_score': 0.0,
                 'risk_level': 'minimal',
                 'escalation_action': 'monitor',
-                'module': 'risk_escalation_matrix'
+                'module': 'risk_escalation_matrix',
             }
         except Exception as e:
             logger.error(f"Risk assessment failed: {e}")
@@ -458,7 +448,7 @@ class IntegrationOrchestrator:
                 'contradictions_found': summary.get('total_contradictions', 0),
                 'critical_contradictions': summary.get('critical_contradictions', 0),
                 'timeline_html': None,
-                'module': 'contradiction_timeline'
+                'module': 'contradiction_timeline',
             }
         except Exception as e:
             logger.error(f"Contradiction timeline failed: {e}")
@@ -478,7 +468,7 @@ class IntegrationOrchestrator:
                 'critical_alerts': summary.get('critical', 0),
                 'high_alerts': summary.get('high', 0),
                 'requires_attention': summary.get('requires_attention', False),
-                'module': 'alert_system'
+                'module': 'alert_system',
             }
         except Exception as e:
             logger.error(f"Alert system failed: {e}")
@@ -498,7 +488,7 @@ class IntegrationOrchestrator:
                     'checklist_items': summary.get('total_items', 0),
                     'critical_items': summary.get('critical_pending', 0),
                     'completion_percentage': summary.get('completion_percentage', 0),
-                    'module': 'investigative_checklist'
+                    'module': 'investigative_checklist',
                 }
             return {'status': 'skipped', 'reason': 'no case_id set'}
         except Exception as e:
@@ -507,10 +497,7 @@ class IntegrationOrchestrator:
 
     def get_module_status(self) -> Dict[str, bool]:
         """Get status of all modules"""
-        return {
-            name: module is not None
-            for name, module in self.modules.items()
-        }
+        return {name: module is not None for name, module in self.modules.items()}
 
     def export_case_report(self, output_path: str) -> bool:
         """
@@ -528,10 +515,7 @@ class IntegrationOrchestrator:
 
         try:
             if 'investigation_tracker' in self.modules:
-                self.modules['investigation_tracker'].export_case_report(
-                    self.case_id,
-                    output_path
-                )
+                self.modules['investigation_tracker'].export_case_report(self.case_id, output_path)
                 logger.info(f"✓ Report exported to {output_path}")
                 return True
         except Exception as e:

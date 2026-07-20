@@ -11,16 +11,17 @@ SUPPORTED LANGUAGES:
 """
 
 import logging
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class Language(Enum):
     """Supported languages"""
+
     ENGLISH = "english"
     AFRIKAANS = "afrikaans"
     MIXED = "mixed"
@@ -28,6 +29,7 @@ class Language(Enum):
 
 class LanguageConfidence(Enum):
     """Confidence levels for language detection"""
+
     VERY_HIGH = "very_high"
     HIGH = "high"
     MODERATE = "moderate"
@@ -38,6 +40,7 @@ class LanguageConfidence(Enum):
 @dataclass
 class LanguageDetection:
     """Language detection result"""
+
     detected_language: Language
     confidence: float
     primary_language: Language
@@ -51,26 +54,27 @@ class LanguageDetection:
 @dataclass
 class LanguageAnalysis:
     """Complete language analysis"""
+
     text_id: str
     original_text: str
-    
+
     # Detection
     language_detection: LanguageDetection
-    
+
     # Authenticity
     native_speaker_indicators: List[str]
     non_native_indicators: List[str]
     authenticity_confidence: float
-    
+
     # Code-switching
     code_switch_frequency: float
     code_switch_patterns: List[str]
     code_switch_reason: Optional[str]
-    
+
     # Accent analysis
     accent_detected: Optional[str]
     accent_confidence: float
-    
+
     # Recommendations
     authenticity_assessment: str
     recommendations: List[str]
@@ -86,11 +90,11 @@ class MultilingualAnalyzer:
         """Initialize analyzer"""
         self.analysis_counter = 0
         self.language_profiles: Dict[str, Dict[str, Any]] = {}
-        
+
         # Language-specific word lists
         self.english_words = self._load_english_words()
         self.afrikaans_words = self._load_afrikaans_words()
-        
+
         # Code-switching indicators
         self.code_switch_patterns = [
             r'\b(ja|nee|dankie|asseblief)\b',  # Afrikaans in English
@@ -100,29 +104,84 @@ class MultilingualAnalyzer:
     def _load_english_words(self) -> set:
         """Load common English words"""
         return {
-            'the', 'a', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-            'is', 'are', 'was', 'were', 'be', 'been', 'being',
-            'have', 'has', 'had', 'do', 'does', 'did',
-            'will', 'would', 'should', 'could', 'may', 'might', 'must',
-            'can', 'cannot', 'not', 'no', 'yes', 'hello', 'goodbye'
+            'the',
+            'a',
+            'and',
+            'or',
+            'but',
+            'in',
+            'on',
+            'at',
+            'to',
+            'for',
+            'is',
+            'are',
+            'was',
+            'were',
+            'be',
+            'been',
+            'being',
+            'have',
+            'has',
+            'had',
+            'do',
+            'does',
+            'did',
+            'will',
+            'would',
+            'should',
+            'could',
+            'may',
+            'might',
+            'must',
+            'can',
+            'cannot',
+            'not',
+            'no',
+            'yes',
+            'hello',
+            'goodbye',
         }
 
     def _load_afrikaans_words(self) -> set:
         """Load common Afrikaans words"""
         return {
-            'die', 'en', 'of', 'maar', 'in', 'op', 'aan', 'na', 'vir',
-            'is', 'are', 'was', 'were', 'wees', 'gewees',
-            'het', 'hê', 'had', 'doen', 'doen', 'gaan',
-            'sal', 'sou', 'moet', 'kan', 'mag', 'wil',
-            'nee', 'ja', 'dankie', 'asseblief', 'hallo', 'totsiens'
+            'die',
+            'en',
+            'of',
+            'maar',
+            'in',
+            'op',
+            'aan',
+            'na',
+            'vir',
+            'is',
+            'are',
+            'was',
+            'were',
+            'wees',
+            'gewees',
+            'het',
+            'hê',
+            'had',
+            'doen',
+            'doen',
+            'gaan',
+            'sal',
+            'sou',
+            'moet',
+            'kan',
+            'mag',
+            'wil',
+            'nee',
+            'ja',
+            'dankie',
+            'asseblief',
+            'hallo',
+            'totsiens',
         }
 
-    def analyze_text(
-        self,
-        text_id: str,
-        text: str,
-        speaker_id: Optional[str] = None
-    ) -> LanguageAnalysis:
+    def analyze_text(self, text_id: str, text: str, speaker_id: Optional[str] = None) -> LanguageAnalysis:
         """
         Analyze text for language and authenticity
 
@@ -147,9 +206,7 @@ class MultilingualAnalyzer:
         )
 
         # Analyze code-switching
-        code_switch_freq, code_switch_patterns, code_switch_reason = self._analyze_code_switching(
-            text, language_detection
-        )
+        code_switch_freq, code_switch_patterns, code_switch_reason = self._analyze_code_switching(text, language_detection)
 
         # Analyze accent
         accent_detected, accent_conf = self._analyze_accent(text, language_detection)
@@ -160,9 +217,7 @@ class MultilingualAnalyzer:
         )
 
         # Generate recommendations
-        recommendations = self._generate_recommendations(
-            language_detection, authenticity_conf, code_switch_freq
-        )
+        recommendations = self._generate_recommendations(language_detection, authenticity_conf, code_switch_freq)
 
         analysis = LanguageAnalysis(
             text_id=text_id,
@@ -177,7 +232,7 @@ class MultilingualAnalyzer:
             accent_detected=accent_detected,
             accent_confidence=accent_conf,
             authenticity_assessment=authenticity_assessment,
-            recommendations=recommendations
+            recommendations=recommendations,
         )
 
         # Update speaker profile
@@ -195,7 +250,7 @@ class MultilingualAnalyzer:
         afrikaans_count = sum(1 for word in words if word in self.afrikaans_words)
 
         total_recognized = english_count + afrikaans_count
-        
+
         if total_recognized == 0:
             return LanguageDetection(
                 detected_language=Language.ENGLISH,
@@ -205,7 +260,7 @@ class MultilingualAnalyzer:
                 code_switching_detected=False,
                 code_switch_points=[],
                 accent_markers=[],
-                authenticity_score=0.5
+                authenticity_score=0.5,
             )
 
         english_ratio = english_count / total_recognized
@@ -243,15 +298,15 @@ class MultilingualAnalyzer:
             code_switching_detected=code_switching,
             code_switch_points=code_switch_points,
             accent_markers=accent_markers,
-            authenticity_score=confidence
+            authenticity_score=confidence,
         )
 
     def _find_code_switch_points(self, text: str, primary_language: Language) -> List[Dict[str, Any]]:
         """Find points where code-switching occurs"""
         import re
-        
+
         code_switch_points = []
-        
+
         if primary_language == Language.ENGLISH:
             afrikaans_patterns = [
                 (r'\bja\b', 'Afrikaans: yes'),
@@ -259,17 +314,14 @@ class MultilingualAnalyzer:
                 (r'\bdankie\b', 'Afrikaans: thank you'),
                 (r'\basseblief\b', 'Afrikaans: please'),
             ]
-            
+
             for pattern, meaning in afrikaans_patterns:
                 matches = re.finditer(pattern, text.lower())
                 for match in matches:
-                    code_switch_points.append({
-                        'position': match.start(),
-                        'word': match.group(),
-                        'language': 'Afrikaans',
-                        'meaning': meaning
-                    })
-        
+                    code_switch_points.append(
+                        {'position': match.start(), 'word': match.group(), 'language': 'Afrikaans', 'meaning': meaning}
+                    )
+
         elif primary_language == Language.AFRIKAANS:
             english_patterns = [
                 (r'\byes\b', 'English: yes'),
@@ -277,16 +329,13 @@ class MultilingualAnalyzer:
                 (r'\bthank\b', 'English: thank'),
                 (r'\bplease\b', 'English: please'),
             ]
-            
+
             for pattern, meaning in english_patterns:
                 matches = re.finditer(pattern, text.lower())
                 for match in matches:
-                    code_switch_points.append({
-                        'position': match.start(),
-                        'word': match.group(),
-                        'language': 'English',
-                        'meaning': meaning
-                    })
+                    code_switch_points.append(
+                        {'position': match.start(), 'word': match.group(), 'language': 'English', 'meaning': meaning}
+                    )
 
         return code_switch_points
 
@@ -314,11 +363,7 @@ class MultilingualAnalyzer:
 
         return markers
 
-    def _analyze_authenticity(
-        self,
-        text: str,
-        language: Language
-    ) -> Tuple[List[str], List[str], float]:
+    def _analyze_authenticity(self, text: str, language: Language) -> Tuple[List[str], List[str], float]:
         """Analyze authenticity of language"""
         native_indicators = []
         non_native_indicators = []
@@ -359,9 +404,7 @@ class MultilingualAnalyzer:
         return native_indicators, non_native_indicators, authenticity_conf
 
     def _analyze_code_switching(
-        self,
-        text: str,
-        language_detection: LanguageDetection
+        self, text: str, language_detection: LanguageDetection
     ) -> Tuple[float, List[str], Optional[str]]:
         """Analyze code-switching patterns"""
         if not language_detection.code_switching_detected:
@@ -405,10 +448,7 @@ class MultilingualAnalyzer:
         return accent, confidence
 
     def _generate_authenticity_assessment(
-        self,
-        authenticity_conf: float,
-        native_indicators: List[str],
-        non_native_indicators: List[str]
+        self, authenticity_conf: float, native_indicators: List[str], non_native_indicators: List[str]
     ) -> str:
         """Generate authenticity assessment"""
         if authenticity_conf > 0.8:
@@ -423,10 +463,7 @@ class MultilingualAnalyzer:
         return assessment
 
     def _generate_recommendations(
-        self,
-        language_detection: LanguageDetection,
-        authenticity_conf: float,
-        code_switch_freq: float
+        self, language_detection: LanguageDetection, authenticity_conf: float, code_switch_freq: float
     ) -> List[str]:
         """Generate recommendations"""
         recommendations = []
@@ -453,10 +490,14 @@ class MultilingualAnalyzer:
         if speaker_id not in self.language_profiles:
             self.language_profiles[speaker_id] = {
                 'primary_language': analysis.language_detection.primary_language.value,
-                'secondary_language': analysis.language_detection.secondary_language.value if analysis.language_detection.secondary_language else None,
+                'secondary_language': (
+                    analysis.language_detection.secondary_language.value
+                    if analysis.language_detection.secondary_language
+                    else None
+                ),
                 'authenticity_scores': [],
                 'code_switch_frequency': [],
-                'accent': analysis.accent_detected
+                'accent': analysis.accent_detected,
             }
 
         profile = self.language_profiles[speaker_id]
@@ -469,8 +510,14 @@ class MultilingualAnalyzer:
             return None
 
         profile = self.language_profiles[speaker_id]
-        avg_authenticity = sum(profile['authenticity_scores']) / len(profile['authenticity_scores']) if profile['authenticity_scores'] else 0
-        avg_code_switch = sum(profile['code_switch_frequency']) / len(profile['code_switch_frequency']) if profile['code_switch_frequency'] else 0
+        avg_authenticity = (
+            sum(profile['authenticity_scores']) / len(profile['authenticity_scores']) if profile['authenticity_scores'] else 0
+        )
+        avg_code_switch = (
+            sum(profile['code_switch_frequency']) / len(profile['code_switch_frequency'])
+            if profile['code_switch_frequency']
+            else 0
+        )
 
         return {
             'speaker_id': speaker_id,
@@ -479,7 +526,7 @@ class MultilingualAnalyzer:
             'average_authenticity': avg_authenticity,
             'average_code_switch_frequency': avg_code_switch,
             'accent': profile['accent'],
-            'analysis_count': len(profile['authenticity_scores'])
+            'analysis_count': len(profile['authenticity_scores']),
         }
 
     def compare_language_profiles(self, speaker_a_id: str, speaker_b_id: str) -> Dict[str, Any]:
@@ -495,8 +542,10 @@ class MultilingualAnalyzer:
             'speaker_b': profile_b,
             'language_match': profile_a['primary_language'] == profile_b['primary_language'],
             'authenticity_difference': abs(profile_a['average_authenticity'] - profile_b['average_authenticity']),
-            'code_switch_difference': abs(profile_a['average_code_switch_frequency'] - profile_b['average_code_switch_frequency']),
-            'accent_match': profile_a['accent'] == profile_b['accent']
+            'code_switch_difference': abs(
+                profile_a['average_code_switch_frequency'] - profile_b['average_code_switch_frequency']
+            ),
+            'accent_match': profile_a['accent'] == profile_b['accent'],
         }
 
     def export_analysis(self, analysis: LanguageAnalysis, output_path: str) -> bool:
@@ -508,7 +557,11 @@ class MultilingualAnalyzer:
                 'text_id': analysis.text_id,
                 'detected_language': analysis.language_detection.detected_language.value,
                 'primary_language': analysis.language_detection.primary_language.value,
-                'secondary_language': analysis.language_detection.secondary_language.value if analysis.language_detection.secondary_language else None,
+                'secondary_language': (
+                    analysis.language_detection.secondary_language.value
+                    if analysis.language_detection.secondary_language
+                    else None
+                ),
                 'language_confidence': analysis.language_detection.confidence,
                 'code_switching_detected': analysis.language_detection.code_switching_detected,
                 'code_switch_frequency': analysis.code_switch_frequency,
@@ -520,7 +573,7 @@ class MultilingualAnalyzer:
                 'non_native_indicators': analysis.non_native_indicators,
                 'authenticity_confidence': analysis.authenticity_confidence,
                 'authenticity_assessment': analysis.authenticity_assessment,
-                'recommendations': analysis.recommendations
+                'recommendations': analysis.recommendations,
             }
 
             with open(output_path, 'w', encoding='utf-8') as f:

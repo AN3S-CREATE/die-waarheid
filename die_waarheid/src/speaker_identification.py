@@ -13,19 +13,18 @@ FEATURES:
 - Voice similarity matching
 """
 
+import hashlib
+import json
 import logging
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
-from pathlib import Path
 from enum import Enum
-import json
-import hashlib
-import numpy as np
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import create_engine, Column, String, DateTime, Float, Text, Boolean, JSON, Integer
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker, Session
+import numpy as np
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Integer, String, Text, create_engine
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +33,7 @@ Base = declarative_base()
 
 class SpeakerRole(Enum):
     """Role of speaker in investigation"""
+
     PARTICIPANT_A = "participant_a"
     PARTICIPANT_B = "participant_b"
     UNKNOWN = "unknown"
@@ -42,6 +42,7 @@ class SpeakerRole(Enum):
 @dataclass
 class VoiceFingerprint:
     """Voice fingerprint for speaker identification"""
+
     speaker_id: str
     fingerprint_hash: str
     mfcc_features: List[float]
@@ -50,7 +51,7 @@ class VoiceFingerprint:
     accent_markers: List[str]
     confidence: float
     created_at: str
-    
+
     def to_dict(self) -> Dict:
         return {
             'speaker_id': self.speaker_id,
@@ -60,39 +61,40 @@ class VoiceFingerprint:
             'speech_rate': self.speech_rate,
             'accent_markers': self.accent_markers,
             'confidence': self.confidence,
-            'created_at': self.created_at
+            'created_at': self.created_at,
         }
 
 
 @dataclass
 class ParticipantProfile:
     """Profile for investigation participant"""
+
     participant_id: str
     assigned_role: SpeakerRole
-    
+
     # Identifiers
     primary_username: str
     alternate_usernames: List[str]
-    
+
     # Voice data
     voice_fingerprints: List[VoiceFingerprint]
     voice_embedding: Optional[List[float]]
-    
+
     # Characteristics
     accent: str
     speech_patterns: Dict[str, Any]
     typical_stress_level: float
-    
+
     # Tracking
     first_appearance: str
     last_appearance: str
     message_count: int
     voice_note_count: int
-    
+
     # Verification
     confidence_score: float
     verified: bool
-    
+
     def to_dict(self) -> Dict:
         return {
             'participant_id': self.participant_id,
@@ -108,42 +110,43 @@ class ParticipantProfile:
             'message_count': self.message_count,
             'voice_note_count': self.voice_note_count,
             'confidence_score': self.confidence_score,
-            'verified': self.verified
+            'verified': self.verified,
         }
 
 
 class SpeakerRecord(Base):
     """Database model for speaker tracking"""
+
     __tablename__ = 'speakers'
-    
+
     id = Column(String, primary_key=True)
     case_id = Column(String, nullable=False, index=True)
     participant_id = Column(String, nullable=False, index=True)
     assigned_role = Column(String)
-    
+
     # Identifiers
     primary_username = Column(String)
     alternate_usernames = Column(JSON, default=[])
-    
+
     # Voice data
     voice_fingerprints = Column(JSON, default=[])
     voice_embedding = Column(JSON)
-    
+
     # Characteristics
     accent = Column(String)
     speech_patterns = Column(JSON, default={})
     typical_stress_level = Column(Float, default=0.0)
-    
+
     # Tracking
     first_appearance = Column(DateTime)
     last_appearance = Column(DateTime)
     message_count = Column(Integer, default=0)
     voice_note_count = Column(Integer, default=0)
-    
+
     # Verification
     confidence_score = Column(Float, default=0.0)
     verified = Column(Boolean, default=False)
-    
+
     # Metadata
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now)
@@ -151,21 +154,22 @@ class SpeakerRecord(Base):
 
 class UsernameMapping(Base):
     """Track username changes and mappings"""
+
     __tablename__ = 'username_mappings'
-    
+
     id = Column(String, primary_key=True)
     case_id = Column(String, nullable=False, index=True)
     participant_id = Column(String, nullable=False, index=True)
-    
+
     # Username info
     username = Column(String, nullable=False)
     first_seen = Column(DateTime)
     last_seen = Column(DateTime)
-    
+
     # Verification
     verified_by_voice = Column(Boolean, default=False)
     voice_confidence = Column(Float, default=0.0)
-    
+
     # Mapping
     mapped_to_participant = Column(String)
     mapping_confidence = Column(Float, default=0.0)
@@ -186,28 +190,30 @@ class SpeakerIdentificationSystem:
             db_path: Path to SQLite database
         """
         self.case_id = case_id
-        
+
         if db_path is None:
             from config import DATA_DIR
+
             db_path = DATA_DIR / "investigations.db"
-        
+
         db_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         # Initialize database
         self.engine = create_engine(f'sqlite:///{db_path}')
         Base.metadata.create_all(self.engine)
         self.SessionLocal = sessionmaker(bind=self.engine)
-        
+
         # Participant profiles
         self.participants: Dict[str, ParticipantProfile] = {}
         self.username_to_participant: Dict[str, str] = {}
-        
+
         # Load existing participants
         self._load_participants()
-        
+
         # Initialize diarization
         try:
             import pyannote.audio
+
             self.diarization_available = True
             logger.info("Pyannote diarization available")
         except Exception as e:
@@ -219,7 +225,7 @@ class SpeakerIdentificationSystem:
         session = self.SessionLocal()
         try:
             speakers = session.query(SpeakerRecord).filter_by(case_id=self.case_id).all()
-            
+
             for speaker in speakers:
                 profile = ParticipantProfile(
                     participant_id=speaker.participant_id,
@@ -236,38 +242,34 @@ class SpeakerIdentificationSystem:
                     message_count=speaker.message_count or 0,
                     voice_note_count=speaker.voice_note_count or 0,
                     confidence_score=speaker.confidence_score or 0.0,
-                    verified=speaker.verified or False
+                    verified=speaker.verified or False,
                 )
-                
+
                 self.participants[speaker.participant_id] = profile
                 self.username_to_participant[speaker.primary_username] = speaker.participant_id
-                
+
                 for alt_username in speaker.alternate_usernames:
                     self.username_to_participant[alt_username] = speaker.participant_id
-            
+
             logger.info(f"Loaded {len(self.participants)} participants")
 
         finally:
             session.close()
-    
+
     def _get_speaker_role(self, role_str: str) -> SpeakerRole:
         """Convert string to SpeakerRole enum safely"""
         if not role_str:
             return SpeakerRole.UNKNOWN
-        
+
         role_mapping = {
             "participant_a": SpeakerRole.PARTICIPANT_A,
             "participant_b": SpeakerRole.PARTICIPANT_B,
-            "unknown": SpeakerRole.UNKNOWN
+            "unknown": SpeakerRole.UNKNOWN,
         }
-        
+
         return role_mapping.get(role_str.lower(), SpeakerRole.UNKNOWN)
 
-    def initialize_investigation(
-        self,
-        participant_a_name: str,
-        participant_b_name: str
-    ) -> Tuple[str, str]:
+    def initialize_investigation(self, participant_a_name: str, participant_b_name: str) -> Tuple[str, str]:
         """
         Initialize investigation with two participants
 
@@ -281,16 +283,10 @@ class SpeakerIdentificationSystem:
         logger.info(f"Initializing investigation with {participant_a_name} and {participant_b_name}")
 
         # Create participant A
-        participant_a_id = self._create_participant(
-            participant_a_name,
-            SpeakerRole.PARTICIPANT_A
-        )
+        participant_a_id = self._create_participant(participant_a_name, SpeakerRole.PARTICIPANT_A)
 
         # Create participant B
-        participant_b_id = self._create_participant(
-            participant_b_name,
-            SpeakerRole.PARTICIPANT_B
-        )
+        participant_b_id = self._create_participant(participant_b_name, SpeakerRole.PARTICIPANT_B)
 
         logger.info(f"Investigation initialized: {participant_a_id}, {participant_b_id}")
         return participant_a_id, participant_b_id
@@ -298,7 +294,7 @@ class SpeakerIdentificationSystem:
     def _create_participant(self, username: str, role: SpeakerRole) -> str:
         """Create new participant"""
         participant_id = f"PART_{self.case_id}_{role.value}"
-        
+
         profile = ParticipantProfile(
             participant_id=participant_id,
             assigned_role=role,
@@ -314,15 +310,15 @@ class SpeakerIdentificationSystem:
             message_count=0,
             voice_note_count=0,
             confidence_score=1.0,
-            verified=True
+            verified=True,
         )
-        
+
         self.participants[participant_id] = profile
         self.username_to_participant[username] = participant_id
-        
+
         # Save to database
         self._save_participant(profile)
-        
+
         return participant_id
 
     def _save_participant(self, profile: ParticipantProfile):
@@ -346,9 +342,9 @@ class SpeakerIdentificationSystem:
                 message_count=profile.message_count,
                 voice_note_count=profile.voice_note_count,
                 confidence_score=profile.confidence_score,
-                verified=profile.verified
+                verified=profile.verified,
             )
-            
+
             session.merge(speaker)
             session.commit()
 
@@ -356,10 +352,7 @@ class SpeakerIdentificationSystem:
             session.close()
 
     def identify_speaker(
-        self,
-        username: str,
-        audio_file: Optional[Path] = None,
-        text_sample: Optional[str] = None
+        self, username: str, audio_file: Optional[Path] = None, text_sample: Optional[str] = None
     ) -> Tuple[str, float]:
         """
         Identify speaker and map to participant
@@ -401,22 +394,22 @@ class SpeakerIdentificationSystem:
         try:
             # Extract voice features
             fingerprint = self._extract_voice_fingerprint(audio_file)
-            
+
             if not fingerprint:
                 return "", 0.0
 
             # Compare with existing participants
             best_match = ""
             best_score = 0.0
-            
+
             logger.debug(f"Comparing with {len(self.participants)} participants")
             for participant_id, profile in self.participants.items():
                 if not profile.voice_fingerprints:
                     logger.debug(f"Participant {participant_id} has no voice fingerprints")
                     continue
-                
+
                 logger.debug(f"Comparing with participant {participant_id} ({len(profile.voice_fingerprints)} fingerprints)")
-                
+
                 # Compare fingerprints
                 for existing_fp in profile.voice_fingerprints:
                     similarity = self._compare_fingerprints(fingerprint, existing_fp)
@@ -424,7 +417,7 @@ class SpeakerIdentificationSystem:
                     if similarity > best_score:
                         best_score = similarity
                         best_match = participant_id
-            
+
             logger.debug(f"Best match: {best_match} with score {best_score:.3f}")
             return best_match, best_score
 
@@ -460,9 +453,7 @@ class SpeakerIdentificationSystem:
             speech_rate = float(len(y) / sr)
 
             # Create fingerprint
-            fingerprint_hash = hashlib.sha256(
-                str(mfcc_mean + list(pitch_range)).encode()
-            ).hexdigest()
+            fingerprint_hash = hashlib.sha256(str(mfcc_mean + list(pitch_range)).encode()).hexdigest()
 
             return VoiceFingerprint(
                 speaker_id="",
@@ -472,7 +463,7 @@ class SpeakerIdentificationSystem:
                 speech_rate=speech_rate,
                 accent_markers=[],
                 confidence=0.8,
-                created_at=datetime.now().isoformat()
+                created_at=datetime.now().isoformat(),
             )
 
         except ImportError:
@@ -482,17 +473,11 @@ class SpeakerIdentificationSystem:
             logger.error(f"Voice fingerprint extraction error: {e}")
             return None
 
-    def _compare_fingerprints(
-        self,
-        fp1: VoiceFingerprint,
-        fp2: VoiceFingerprint
-    ) -> float:
+    def _compare_fingerprints(self, fp1: VoiceFingerprint, fp2: VoiceFingerprint) -> float:
         """Compare two voice fingerprints"""
         try:
             # Compare MFCC features
-            mfcc_distance = np.linalg.norm(
-                np.array(fp1.mfcc_features) - np.array(fp2.mfcc_features)
-            )
+            mfcc_distance = np.linalg.norm(np.array(fp1.mfcc_features) - np.array(fp2.mfcc_features))
             mfcc_similarity = 1.0 / (1.0 + mfcc_distance)
 
             # Compare pitch ranges
@@ -506,7 +491,7 @@ class SpeakerIdentificationSystem:
             rate_similarity = 1.0 / (1.0 + rate_diff)
 
             # Weighted average
-            similarity = (mfcc_similarity * 0.5 + pitch_similarity * 0.3 + rate_similarity * 0.2)
+            similarity = mfcc_similarity * 0.5 + pitch_similarity * 0.3 + rate_similarity * 0.2
             return similarity
 
         except Exception as e:
@@ -562,11 +547,7 @@ class SpeakerIdentificationSystem:
         return score / max(matches, 1) if matches > 0 else 0.0
 
     def _map_username_to_participant(
-        self,
-        username: str,
-        participant_id: str,
-        confidence: float,
-        verified_by_voice: bool = False
+        self, username: str, participant_id: str, confidence: float, verified_by_voice: bool = False
     ):
         """Map username to participant"""
         self.username_to_participant[username] = participant_id
@@ -592,7 +573,7 @@ class SpeakerIdentificationSystem:
                 verified_by_voice=verified_by_voice,
                 voice_confidence=confidence if verified_by_voice else 0.0,
                 mapped_to_participant=participant_id,
-                mapping_confidence=confidence
+                mapping_confidence=confidence,
             )
             session.merge(mapping)
             session.commit()
@@ -600,12 +581,7 @@ class SpeakerIdentificationSystem:
         finally:
             session.close()
 
-    def register_message(
-        self,
-        username: str,
-        message_text: str,
-        timestamp: datetime
-    ) -> str:
+    def register_message(self, username: str, message_text: str, timestamp: datetime) -> str:
         """
         Register message and identify speaker
 
@@ -629,20 +605,15 @@ class SpeakerIdentificationSystem:
             profile = self.participants[participant_id]
             profile.message_count += 1
             profile.last_appearance = timestamp.isoformat()
-            
+
             # Update speech patterns
             self._update_speech_patterns(profile, message_text)
-            
+
             self._save_participant(profile)
 
         return participant_id
 
-    def register_voice_note(
-        self,
-        username: str,
-        audio_file: Path,
-        timestamp: datetime
-    ) -> str:
+    def register_voice_note(self, username: str, audio_file: Path, timestamp: datetime) -> str:
         """
         Register voice note and identify speaker
 
@@ -666,12 +637,12 @@ class SpeakerIdentificationSystem:
             profile = self.participants[participant_id]
             profile.voice_note_count += 1
             profile.last_appearance = timestamp.isoformat()
-            
+
             # Extract and store voice fingerprint
             fingerprint = self._extract_voice_fingerprint(audio_file)
             if fingerprint:
                 profile.voice_fingerprints.append(fingerprint)
-            
+
             self._save_participant(profile)
 
         return participant_id
@@ -715,25 +686,22 @@ class SpeakerIdentificationSystem:
 
     def get_investigation_summary(self) -> Dict[str, Any]:
         """Get investigation summary with speaker info"""
-        summary = {
-            'case_id': self.case_id,
-            'participants': [],
-            'total_messages': 0,
-            'total_voice_notes': 0
-        }
+        summary = {'case_id': self.case_id, 'participants': [], 'total_messages': 0, 'total_voice_notes': 0}
 
         for profile in self.participants.values():
-            summary['participants'].append({
-                'participant_id': profile.participant_id,
-                'role': profile.assigned_role.value,
-                'primary_username': profile.primary_username,
-                'alternate_usernames': profile.alternate_usernames,
-                'message_count': profile.message_count,
-                'voice_note_count': profile.voice_note_count,
-                'confidence_score': profile.confidence_score,
-                'verified': profile.verified
-            })
-            
+            summary['participants'].append(
+                {
+                    'participant_id': profile.participant_id,
+                    'role': profile.assigned_role.value,
+                    'primary_username': profile.primary_username,
+                    'alternate_usernames': profile.alternate_usernames,
+                    'message_count': profile.message_count,
+                    'voice_note_count': profile.voice_note_count,
+                    'confidence_score': profile.confidence_score,
+                    'verified': profile.verified,
+                }
+            )
+
             summary['total_messages'] += profile.message_count
             summary['total_voice_notes'] += profile.voice_note_count
 
@@ -747,7 +715,7 @@ class SpeakerIdentificationSystem:
                 logger.info("Database connections closed")
         except Exception as e:
             logger.error(f"Error closing database connections: {str(e)}")
-    
+
     def __del__(self):
         """Destructor to ensure connections are closed"""
         self.close()

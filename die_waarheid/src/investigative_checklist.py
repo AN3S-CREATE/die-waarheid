@@ -12,16 +12,17 @@ CHECKLIST ITEMS:
 """
 
 import logging
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class ChecklistItemPriority(Enum):
     """Priority of checklist item"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -30,6 +31,7 @@ class ChecklistItemPriority(Enum):
 
 class ChecklistItemType(Enum):
     """Type of checklist item"""
+
     QUESTION = "question"
     VERIFY_EVIDENCE = "verify_evidence"
     OBTAIN_EVIDENCE = "obtain_evidence"
@@ -42,28 +44,29 @@ class ChecklistItemType(Enum):
 @dataclass
 class ChecklistItem:
     """Single checklist item"""
+
     item_id: str
     item_type: ChecklistItemType
     priority: ChecklistItemPriority
-    
+
     # Content
     title: str
     description: str
     rationale: str
-    
+
     # Target
     target_participant: str
     related_evidence: List[str]
-    
+
     # Details
     specific_details: Dict[str, Any]
     expected_outcome: str
-    
+
     # Status
     completed: bool = False
     completed_at: Optional[str] = None
     notes: str = ""
-    
+
     def to_dict(self) -> Dict:
         return {
             'item_id': self.item_id,
@@ -78,7 +81,7 @@ class ChecklistItem:
             'expected_outcome': self.expected_outcome,
             'completed': self.completed,
             'completed_at': self.completed_at,
-            'notes': self.notes
+            'notes': self.notes,
         }
 
 
@@ -100,7 +103,7 @@ class InvestigativeChecklistGenerator:
         timeline_gaps: List[Dict[str, Any]],
         stress_spikes: List[Dict[str, Any]],
         manipulation_indicators: List[Dict[str, Any]],
-        participants: List[Dict[str, str]]
+        participants: List[Dict[str, str]],
     ) -> List[ChecklistItem]:
         """
         Generate comprehensive checklist from analysis findings
@@ -123,10 +126,7 @@ class InvestigativeChecklistGenerator:
 
         # 1. Generate questions from contradictions
         for contradiction in contradictions:
-            item = self._create_contradiction_question(
-                contradiction,
-                participants
-            )
+            item = self._create_contradiction_question(contradiction, participants)
             if item:
                 checklist.append(item)
 
@@ -155,17 +155,10 @@ class InvestigativeChecklistGenerator:
                 checklist.append(item)
 
         # 6. Generate evidence verification items
-        checklist.extend(self._create_evidence_verification_items(
-            contradictions, participants
-        ))
+        checklist.extend(self._create_evidence_verification_items(contradictions, participants))
 
         # Sort by priority
-        checklist.sort(
-            key=lambda x: (
-                list(ChecklistItemPriority).index(x.priority),
-                x.item_type.value
-            )
-        )
+        checklist.sort(key=lambda x: (list(ChecklistItemPriority).index(x.priority), x.item_type.value))
 
         self.checklists[case_id] = checklist
         logger.info(f"Generated {len(checklist)} checklist items")
@@ -173,9 +166,7 @@ class InvestigativeChecklistGenerator:
         return checklist
 
     def _create_contradiction_question(
-        self,
-        contradiction: Dict[str, Any],
-        participants: List[Dict[str, str]]
+        self, contradiction: Dict[str, Any], participants: List[Dict[str, str]]
     ) -> Optional[ChecklistItem]:
         """Create question item from contradiction"""
         try:
@@ -204,20 +195,16 @@ class InvestigativeChecklistGenerator:
                     'current_statement': current[:200],
                     'past_statement': past[:200],
                     'confidence': confidence,
-                    'suggested_question': f"You previously said '{past[:100]}...' but now you're saying '{current[:100]}...'. Can you explain this difference?"
+                    'suggested_question': f"You previously said '{past[:100]}...' but now you're saying '{current[:100]}...'. Can you explain this difference?",
                 },
-                expected_outcome="Clarification of discrepancy or admission of inconsistency"
+                expected_outcome="Clarification of discrepancy or admission of inconsistency",
             )
 
         except Exception as e:
             logger.error(f"Error creating contradiction question: {e}")
             return None
 
-    def _create_timeline_gap_item(
-        self,
-        gap: Dict[str, Any],
-        participants: List[Dict[str, str]]
-    ) -> Optional[ChecklistItem]:
+    def _create_timeline_gap_item(self, gap: Dict[str, Any], participants: List[Dict[str, str]]) -> Optional[ChecklistItem]:
         """Create timeline gap item"""
         try:
             self.item_counter += 1
@@ -245,10 +232,10 @@ class InvestigativeChecklistGenerator:
                         'Location data',
                         'Witness statements',
                         'Security footage',
-                        'Transaction records'
-                    ]
+                        'Transaction records',
+                    ],
                 },
-                expected_outcome="Verification of participant's whereabouts during gap period"
+                expected_outcome="Verification of participant's whereabouts during gap period",
             )
 
         except Exception as e:
@@ -256,9 +243,7 @@ class InvestigativeChecklistGenerator:
             return None
 
     def _create_pattern_follow_up(
-        self,
-        pattern: Dict[str, Any],
-        participants: List[Dict[str, str]]
+        self, pattern: Dict[str, Any], participants: List[Dict[str, str]]
     ) -> Optional[ChecklistItem]:
         """Create pattern change follow-up item"""
         try:
@@ -283,9 +268,9 @@ class InvestigativeChecklistGenerator:
                     'pattern_type': pattern_type,
                     'change_description': change,
                     'baseline': pattern.get('baseline', 'unknown'),
-                    'current': pattern.get('current', 'unknown')
+                    'current': pattern.get('current', 'unknown'),
                 },
-                expected_outcome="Understanding of cause for pattern change"
+                expected_outcome="Understanding of cause for pattern change",
             )
 
         except Exception as e:
@@ -293,9 +278,7 @@ class InvestigativeChecklistGenerator:
             return None
 
     def _create_stress_investigation(
-        self,
-        spike: Dict[str, Any],
-        participants: List[Dict[str, str]]
+        self, spike: Dict[str, Any], participants: List[Dict[str, str]]
     ) -> Optional[ChecklistItem]:
         """Create stress spike investigation item"""
         try:
@@ -321,9 +304,9 @@ class InvestigativeChecklistGenerator:
                     'current_stress': current_stress,
                     'baseline_stress': baseline,
                     'spike_ratio': ratio,
-                    'suggested_question': f"I noticed your stress level was significantly elevated in this message. What was causing that?"
+                    'suggested_question': f"I noticed your stress level was significantly elevated in this message. What was causing that?",
                 },
-                expected_outcome="Explanation for stress increase or indication of deception"
+                expected_outcome="Explanation for stress increase or indication of deception",
             )
 
         except Exception as e:
@@ -331,9 +314,7 @@ class InvestigativeChecklistGenerator:
             return None
 
     def _create_manipulation_confrontation(
-        self,
-        manipulation: Dict[str, Any],
-        participants: List[Dict[str, str]]
+        self, manipulation: Dict[str, Any], participants: List[Dict[str, str]]
     ) -> Optional[ChecklistItem]:
         """Create manipulation confrontation item"""
         try:
@@ -357,9 +338,9 @@ class InvestigativeChecklistGenerator:
                 specific_details={
                     'manipulation_type': manip_type,
                     'evidence_text': evidence_text[:300],
-                    'suggested_approach': f"Point out the {manip_type} behavior and ask for explanation"
+                    'suggested_approach': f"Point out the {manip_type} behavior and ask for explanation",
                 },
-                expected_outcome="Acknowledgment, denial, or escalation of behavior"
+                expected_outcome="Acknowledgment, denial, or escalation of behavior",
             )
 
         except Exception as e:
@@ -367,9 +348,7 @@ class InvestigativeChecklistGenerator:
             return None
 
     def _create_evidence_verification_items(
-        self,
-        contradictions: List[Dict[str, Any]],
-        participants: List[Dict[str, str]]
+        self, contradictions: List[Dict[str, Any]], participants: List[Dict[str, str]]
     ) -> List[ChecklistItem]:
         """Create evidence verification items"""
         items = []
@@ -399,10 +378,10 @@ class InvestigativeChecklistGenerator:
                             'Check source authenticity',
                             'Verify timestamps',
                             'Confirm content accuracy',
-                            'Check for tampering'
-                        ]
+                            'Check for tampering',
+                        ],
                     },
-                    expected_outcome="Confirmation of evidence authenticity and reliability"
+                    expected_outcome="Confirmation of evidence authenticity and reliability",
                 )
                 items.append(item)
 
@@ -411,23 +390,14 @@ class InvestigativeChecklistGenerator:
 
         return items
 
-    def _get_participant_name(
-        self,
-        participant_id: str,
-        participants: List[Dict[str, str]]
-    ) -> str:
+    def _get_participant_name(self, participant_id: str, participants: List[Dict[str, str]]) -> str:
         """Get participant name from ID"""
         for p in participants:
             if p.get('participant_id') == participant_id:
                 return p.get('primary_username', participant_id)
         return participant_id
 
-    def mark_item_complete(
-        self,
-        case_id: str,
-        item_id: str,
-        notes: str = ""
-    ):
+    def mark_item_complete(self, case_id: str, item_id: str, notes: str = ""):
         """Mark checklist item as complete"""
         if case_id in self.checklists:
             for item in self.checklists[case_id]:
@@ -448,23 +418,13 @@ class InvestigativeChecklistGenerator:
         """Get all critical priority items"""
         if case_id not in self.checklists:
             return []
-        return [
-            item for item in self.checklists[case_id]
-            if item.priority == ChecklistItemPriority.CRITICAL
-        ]
+        return [item for item in self.checklists[case_id] if item.priority == ChecklistItemPriority.CRITICAL]
 
-    def get_items_for_participant(
-        self,
-        case_id: str,
-        participant_id: str
-    ) -> List[ChecklistItem]:
+    def get_items_for_participant(self, case_id: str, participant_id: str) -> List[ChecklistItem]:
         """Get checklist items for specific participant"""
         if case_id not in self.checklists:
             return []
-        return [
-            item for item in self.checklists[case_id]
-            if item.target_participant == participant_id
-        ]
+        return [item for item in self.checklists[case_id] if item.target_participant == participant_id]
 
     def get_checklist_summary(self, case_id: str) -> Dict[str, Any]:
         """Get checklist summary"""
@@ -480,10 +440,12 @@ class InvestigativeChecklistGenerator:
             'total_items': len(checklist),
             'completed': completed,
             'pending': pending,
-            'critical_pending': len([i for i in checklist if not i.completed and i.priority == ChecklistItemPriority.CRITICAL]),
+            'critical_pending': len(
+                [i for i in checklist if not i.completed and i.priority == ChecklistItemPriority.CRITICAL]
+            ),
             'completion_percentage': (completed / len(checklist) * 100) if checklist else 0,
             'items_by_type': self._count_by_type(checklist),
-            'items_by_priority': self._count_by_priority(checklist)
+            'items_by_priority': self._count_by_priority(checklist),
         }
 
     def _count_by_type(self, checklist: List[ChecklistItem]) -> Dict[str, int]:
@@ -513,10 +475,11 @@ class InvestigativeChecklistGenerator:
                 'case_id': case_id,
                 'exported_at': datetime.now().isoformat(),
                 'summary': self.get_checklist_summary(case_id),
-                'items': [item.to_dict() for item in checklist]
+                'items': [item.to_dict() for item in checklist],
             }
 
             import json
+
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, default=str)
 

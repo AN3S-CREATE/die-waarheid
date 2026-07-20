@@ -3,30 +3,29 @@ Google Drive Integration for Die Waarheid
 Handles OAuth authentication and file operations
 """
 
-import os
 import io
-import pickle
 import logging
+import os
+import pickle
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional, Callable
+from typing import Callable, Dict, List, Optional, Tuple
 
+from config import (
+    AUDIO_DIR,
+    GDRIVE_AUDIO_FOLDER,
+    GDRIVE_SCOPES,
+    GDRIVE_TEXT_FOLDER,
+    GOOGLE_CREDENTIALS_PATH,
+    SUPPORTED_AUDIO_FORMATS,
+    TEXT_DIR,
+    TOKEN_PICKLE_PATH,
+)
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload
 from googleapiclient.errors import HttpError
-
-from config import (
-    GDRIVE_SCOPES,
-    GOOGLE_CREDENTIALS_PATH,
-    TOKEN_PICKLE_PATH,
-    GDRIVE_AUDIO_FOLDER,
-    GDRIVE_TEXT_FOLDER,
-    AUDIO_DIR,
-    TEXT_DIR,
-    SUPPORTED_AUDIO_FORMATS
-)
+from googleapiclient.http import MediaIoBaseDownload
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +72,7 @@ class GDriveHandler:
                         )
 
                     try:
-                        flow = InstalledAppFlow.from_client_secrets_file(
-                            str(self.credentials_path),
-                            GDRIVE_SCOPES
-                        )
+                        flow = InstalledAppFlow.from_client_secrets_file(str(self.credentials_path), GDRIVE_SCOPES)
                         self.creds = flow.run_local_server(port=0)
                         logger.info("Completed OAuth 2.0 authentication flow")
                     except Exception as e:
@@ -117,18 +113,13 @@ class GDriveHandler:
 
         try:
             query = f"name='{folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-            results = self.service.files().list(
-                q=query,
-                spaces='drive',
-                fields='files(id, name)',
-                pageSize=10
-            ).execute()
+            results = self.service.files().list(q=query, spaces='drive', fields='files(id, name)', pageSize=10).execute()
 
             items = results.get('files', [])
             if items:
                 logger.info(f"Found folder '{folder_name}' with ID: {items[0]['id']}")
                 return items[0]['id']
-            
+
             logger.warning(f"Folder '{folder_name}' not found in Google Drive")
             return None
 
@@ -136,11 +127,7 @@ class GDriveHandler:
             logger.error(f"Error finding folder '{folder_name}': {error}")
             return None
 
-    def list_files_in_folder(
-        self,
-        folder_id: str,
-        file_extension: Optional[str] = None
-    ) -> List[Dict]:
+    def list_files_in_folder(self, folder_id: str, file_extension: Optional[str] = None) -> List[Dict]:
         """
         List all files in a folder, optionally filtered by extension
 
@@ -160,12 +147,13 @@ class GDriveHandler:
             if file_extension:
                 query += f" and name contains '{file_extension}'"
 
-            results = self.service.files().list(
-                q=query,
-                spaces='drive',
-                fields='files(id, name, mimeType, createdTime, modifiedTime, size)',
-                pageSize=1000
-            ).execute()
+            results = (
+                self.service.files()
+                .list(
+                    q=query, spaces='drive', fields='files(id, name, mimeType, createdTime, modifiedTime, size)', pageSize=1000
+                )
+                .execute()
+            )
 
             files = results.get('files', [])
             logger.info(f"Found {len(files)} files in folder {folder_id}")
@@ -190,18 +178,13 @@ class GDriveHandler:
             return []
 
         try:
-            query = (
-                f"'{folder_id}' in parents and "
-                "mimeType='application/vnd.google-apps.folder' and "
-                "trashed=false"
-            )
+            query = f"'{folder_id}' in parents and " "mimeType='application/vnd.google-apps.folder' and " "trashed=false"
 
-            results = self.service.files().list(
-                q=query,
-                spaces='drive',
-                fields='files(id, name, createdTime)',
-                pageSize=1000
-            ).execute()
+            results = (
+                self.service.files()
+                .list(q=query, spaces='drive', fields='files(id, name, createdTime)', pageSize=1000)
+                .execute()
+            )
 
             subfolders = results.get('files', [])
             logger.info(f"Found {len(subfolders)} subfolders in folder {folder_id}")
@@ -212,10 +195,7 @@ class GDriveHandler:
             return []
 
     def download_file(
-        self,
-        file_id: str,
-        destination_path: Path,
-        progress_callback: Optional[Callable] = None
+        self, file_id: str, destination_path: Path, progress_callback: Optional[Callable] = None
     ) -> Tuple[bool, str]:
         """
         Download a file from Google Drive
@@ -259,7 +239,7 @@ class GDriveHandler:
         self,
         text_folder_path: str = GDRIVE_TEXT_FOLDER,
         local_dir: Path = TEXT_DIR,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
     ) -> Tuple[List[Dict], str]:
         """
         Download all text files from Investigation_Text folder
@@ -290,12 +270,9 @@ class GDriveHandler:
                 success, message = self.download_file(file['id'], local_path, progress_callback)
 
                 if success:
-                    downloaded_files.append({
-                        'id': file['id'],
-                        'name': file['name'],
-                        'path': str(local_path),
-                        'size': file.get('size', 0)
-                    })
+                    downloaded_files.append(
+                        {'id': file['id'], 'name': file['name'], 'path': str(local_path), 'size': file.get('size', 0)}
+                    )
                     logger.info(f"Downloaded text file: {file['name']}")
                 else:
                     logger.warning(f"Failed to download {file['name']}: {message}")
@@ -312,7 +289,7 @@ class GDriveHandler:
         self,
         audio_folder_path: str = GDRIVE_AUDIO_FOLDER,
         local_dir: Path = AUDIO_DIR,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
     ) -> Tuple[List[Dict], str]:
         """
         Download all audio files from Investigation_Audio folder
@@ -339,7 +316,7 @@ class GDriveHandler:
 
         for idx, file in enumerate(files):
             file_ext = Path(file['name']).suffix.lower()
-            
+
             if file_ext not in SUPPORTED_AUDIO_FORMATS:
                 logger.debug(f"Skipping unsupported audio format: {file['name']}")
                 continue
@@ -349,13 +326,15 @@ class GDriveHandler:
                 success, message = self.download_file(file['id'], local_path, progress_callback)
 
                 if success:
-                    downloaded_files.append({
-                        'id': file['id'],
-                        'name': file['name'],
-                        'path': str(local_path),
-                        'size': file.get('size', 0),
-                        'format': file_ext
-                    })
+                    downloaded_files.append(
+                        {
+                            'id': file['id'],
+                            'name': file['name'],
+                            'path': str(local_path),
+                            'size': file.get('size', 0),
+                            'format': file_ext,
+                        }
+                    )
                     logger.info(f"Downloaded audio file: {file['name']}")
                 else:
                     logger.warning(f"Failed to download {file['name']}: {message}")
@@ -383,10 +362,11 @@ class GDriveHandler:
             return None
 
         try:
-            file = self.service.files().get(
-                fileId=file_id,
-                fields='id, name, mimeType, createdTime, modifiedTime, size, owners'
-            ).execute()
+            file = (
+                self.service.files()
+                .get(fileId=file_id, fields='id, name, mimeType, createdTime, modifiedTime, size, owners')
+                .execute()
+            )
 
             logger.info(f"Retrieved metadata for file {file_id}")
             return file
@@ -411,12 +391,16 @@ class GDriveHandler:
             return []
 
         try:
-            results = self.service.files().list(
-                q=query,
-                spaces='drive',
-                fields='files(id, name, mimeType, createdTime, modifiedTime, size)',
-                pageSize=max_results
-            ).execute()
+            results = (
+                self.service.files()
+                .list(
+                    q=query,
+                    spaces='drive',
+                    fields='files(id, name, mimeType, createdTime, modifiedTime, size)',
+                    pageSize=max_results,
+                )
+                .execute()
+            )
 
             files = results.get('files', [])
             logger.info(f"Search for '{query}' returned {len(files)} results")
@@ -439,7 +423,7 @@ class GDriveHandler:
             'credentials_file_exists': self.credentials_path.exists(),
             'token_file_exists': self.token_path.exists(),
             'credentials_path': str(self.credentials_path),
-            'token_path': str(self.token_path)
+            'token_path': str(self.token_path),
         }
 
 

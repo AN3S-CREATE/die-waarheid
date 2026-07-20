@@ -3,19 +3,14 @@ Report Generator for Die Waarheid
 Generates comprehensive forensic analysis reports in multiple formats
 """
 
+import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
-import json
 
 import pandas as pd
-
-from config import (
-    REPORT_TEMPLATE,
-    REPORTS_DIR,
-    EXPORTS_DIR
-)
+from config import EXPORTS_DIR, REPORT_TEMPLATE, REPORTS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +32,7 @@ class ReportGenerator:
         date_range: Tuple[datetime, datetime],
         participants: List[str],
         total_messages: int,
-        total_audio: int
+        total_audio: int,
     ) -> None:
         """
         Set case information
@@ -61,12 +56,7 @@ class ReportGenerator:
 
         logger.info(f"Set case info for {case_id}")
 
-    def add_executive_summary(
-        self,
-        trust_score: float,
-        critical_findings: List[str],
-        key_metrics: Dict
-    ) -> None:
+    def add_executive_summary(self, trust_score: float, critical_findings: List[str], key_metrics: Dict) -> None:
         """
         Add executive summary section
 
@@ -238,6 +228,7 @@ class ReportGenerator:
 
         try:
             import markdown
+
             html_content = markdown.markdown(markdown_report)
         except ImportError:
             logger.warning("markdown library not available, using basic HTML conversion")
@@ -324,21 +315,21 @@ class ReportGenerator:
             'metadata': {
                 'case_id': self.case_id,
                 'generated_at': self.generated_at.isoformat() if self.generated_at else None,
-                'report_type': 'forensic_analysis'
+                'report_type': 'forensic_analysis',
             },
             'case_info': {
                 'case_id': self.report_data.get('case_id'),
                 'date_range': self.report_data.get('date_range'),
                 'participants': self.report_data.get('participants'),
                 'total_messages': self.report_data.get('total_messages'),
-                'total_audio': self.report_data.get('total_audio')
+                'total_audio': self.report_data.get('total_audio'),
             },
             'analysis': {
                 'trust_score': self.report_data.get('trust_score'),
                 'trust_interpretation': self.report_data.get('trust_interpretation'),
                 'critical_findings': self.report_data.get('critical_findings'),
-                'contradictions': self.report_data.get('contradictions')
-            }
+                'contradictions': self.report_data.get('contradictions'),
+            },
         }
 
         logger.info("Generated JSON report")
@@ -447,7 +438,7 @@ class ReportGenerator:
         results = {
             'markdown': self.export_to_markdown(output_dir / f"report_{self.case_id}.md"),
             'html': self.export_to_html(output_dir / f"report_{self.case_id}.html"),
-            'json': self.export_to_json(output_dir / f"report_{self.case_id}.json")
+            'json': self.export_to_json(output_dir / f"report_{self.case_id}.json"),
         }
 
         logger.info(f"Exported report in all formats to {output_dir}")
@@ -466,7 +457,7 @@ class ReportGenerator:
             'trust_score': self.report_data.get('trust_score'),
             'total_messages': self.report_data.get('total_messages'),
             'total_audio': self.report_data.get('total_audio'),
-            'participants': self.report_data.get('participants')
+            'participants': self.report_data.get('participants'),
         }
 
 

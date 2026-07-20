@@ -11,19 +11,20 @@ ALERT TYPES:
 - Risk Alert: Overall case risk escalates
 """
 
+import json
 import logging
-from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from queue import Queue
-import json
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class AlertSeverity(Enum):
     """Alert severity levels"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -32,6 +33,7 @@ class AlertSeverity(Enum):
 
 class AlertType(Enum):
     """Types of alerts"""
+
     CONTRADICTION = "contradiction"
     STRESS_SPIKE = "stress_spike"
     TIMELINE_INCONSISTENCY = "timeline_inconsistency"
@@ -44,30 +46,31 @@ class AlertType(Enum):
 @dataclass
 class Alert:
     """Single alert"""
+
     alert_id: str
     alert_type: AlertType
     severity: AlertSeverity
     timestamp: str
-    
+
     # Content
     title: str
     description: str
     evidence_id: str
     participant_id: str
-    
+
     # Details
     details: Dict[str, Any]
     confidence: float
-    
+
     # Action
     recommended_action: str
     requires_immediate_attention: bool
-    
+
     # Status
     acknowledged: bool = False
     acknowledged_at: Optional[str] = None
     acknowledged_by: Optional[str] = None
-    
+
     def to_dict(self) -> Dict:
         return {
             'alert_id': self.alert_id,
@@ -84,7 +87,7 @@ class Alert:
             'requires_immediate_attention': self.requires_immediate_attention,
             'acknowledged': self.acknowledged,
             'acknowledged_at': self.acknowledged_at,
-            'acknowledged_by': self.acknowledged_by
+            'acknowledged_by': self.acknowledged_by,
         }
 
 
@@ -101,7 +104,7 @@ class AlertSystem:
         self.alert_queue: Queue = Queue()
         self.alert_handlers: Dict[AlertType, List[Callable]] = {}
         self.baseline_stress: Dict[str, float] = {}
-        
+
         # Register default handlers
         self._register_default_handlers()
 
@@ -123,12 +126,7 @@ class AlertSystem:
         self.alert_handlers[alert_type].append(handler)
 
     def check_contradiction(
-        self,
-        evidence_id: str,
-        participant_id: str,
-        current_statement: str,
-        past_statement: str,
-        confidence: float
+        self, evidence_id: str, participant_id: str, current_statement: str, past_statement: str, confidence: float
     ) -> Optional[Alert]:
         """
         Check for contradictions and create alert
@@ -169,11 +167,11 @@ class AlertSystem:
             details={
                 'current_statement': current_statement[:200],
                 'past_statement': past_statement[:200],
-                'confidence': confidence
+                'confidence': confidence,
             },
             confidence=confidence,
             recommended_action="Review both statements and confront participant with discrepancy",
-            requires_immediate_attention=confidence > 0.9
+            requires_immediate_attention=confidence > 0.9,
         )
 
         self._process_alert(alert)
@@ -185,7 +183,7 @@ class AlertSystem:
         participant_id: str,
         current_stress: float,
         baseline_stress: float,
-        spike_threshold: float = 1.5
+        spike_threshold: float = 1.5,
     ) -> Optional[Alert]:
         """
         Check for stress level spikes
@@ -204,7 +202,7 @@ class AlertSystem:
             return None
 
         spike_ratio = current_stress / baseline_stress
-        
+
         if spike_ratio < spike_threshold:
             return None
 
@@ -230,26 +228,17 @@ class AlertSystem:
             description=f"Stress level increased {spike_ratio:.1f}x above baseline",
             evidence_id=evidence_id,
             participant_id=participant_id,
-            details={
-                'current_stress': current_stress,
-                'baseline_stress': baseline_stress,
-                'spike_ratio': spike_ratio
-            },
+            details={'current_stress': current_stress, 'baseline_stress': baseline_stress, 'spike_ratio': spike_ratio},
             confidence=confidence,
             recommended_action="Investigate cause of stress increase - may indicate awareness of discrepancies",
-            requires_immediate_attention=spike_ratio > 2.5
+            requires_immediate_attention=spike_ratio > 2.5,
         )
 
         self._process_alert(alert)
         return alert
 
     def check_timeline_inconsistency(
-        self,
-        evidence_id: str,
-        participant_id: str,
-        claimed_time: str,
-        conflicting_evidence: str,
-        confidence: float
+        self, evidence_id: str, participant_id: str, claimed_time: str, conflicting_evidence: str, confidence: float
     ) -> Optional[Alert]:
         """
         Check for timeline inconsistencies
@@ -281,26 +270,17 @@ class AlertSystem:
             description=f"Claimed timeline conflicts with evidence ({confidence*100:.0f}% confidence)",
             evidence_id=evidence_id,
             participant_id=participant_id,
-            details={
-                'claimed_time': claimed_time,
-                'conflicting_evidence': conflicting_evidence,
-                'confidence': confidence
-            },
+            details={'claimed_time': claimed_time, 'conflicting_evidence': conflicting_evidence, 'confidence': confidence},
             confidence=confidence,
             recommended_action="Verify timeline with independent evidence and confront with discrepancy",
-            requires_immediate_attention=True
+            requires_immediate_attention=True,
         )
 
         self._process_alert(alert)
         return alert
 
     def check_pattern_change(
-        self,
-        evidence_id: str,
-        participant_id: str,
-        pattern_type: str,
-        change_description: str,
-        confidence: float
+        self, evidence_id: str, participant_id: str, pattern_type: str, change_description: str, confidence: float
     ) -> Optional[Alert]:
         """
         Check for behavioral pattern changes
@@ -332,26 +312,17 @@ class AlertSystem:
             description=f"{change_description} ({confidence*100:.0f}% confidence)",
             evidence_id=evidence_id,
             participant_id=participant_id,
-            details={
-                'pattern_type': pattern_type,
-                'change_description': change_description,
-                'confidence': confidence
-            },
+            details={'pattern_type': pattern_type, 'change_description': change_description, 'confidence': confidence},
             confidence=confidence,
             recommended_action="Note pattern change and monitor for escalation or deception indicators",
-            requires_immediate_attention=confidence > 0.9
+            requires_immediate_attention=confidence > 0.9,
         )
 
         self._process_alert(alert)
         return alert
 
     def check_manipulation_detected(
-        self,
-        evidence_id: str,
-        participant_id: str,
-        manipulation_type: str,
-        evidence_text: str,
-        confidence: float
+        self, evidence_id: str, participant_id: str, manipulation_type: str, evidence_text: str, confidence: float
     ) -> Optional[Alert]:
         """
         Check for manipulation tactics
@@ -383,25 +354,17 @@ class AlertSystem:
             description=f"Evidence of {manipulation_type} detected ({confidence*100:.0f}% confidence)",
             evidence_id=evidence_id,
             participant_id=participant_id,
-            details={
-                'manipulation_type': manipulation_type,
-                'evidence_text': evidence_text[:300],
-                'confidence': confidence
-            },
+            details={'manipulation_type': manipulation_type, 'evidence_text': evidence_text[:300], 'confidence': confidence},
             confidence=confidence,
             recommended_action=f"Document {manipulation_type} pattern and monitor for escalation",
-            requires_immediate_attention=True
+            requires_immediate_attention=True,
         )
 
         self._process_alert(alert)
         return alert
 
     def check_afrikaans_verification_failed(
-        self,
-        evidence_id: str,
-        participant_id: str,
-        confidence: float,
-        reason: str
+        self, evidence_id: str, participant_id: str, confidence: float, reason: str
     ) -> Optional[Alert]:
         """
         Check for Afrikaans verification failures
@@ -432,24 +395,17 @@ class AlertSystem:
             description=f"Afrikaans transcription confidence low: {confidence*100:.0f}% - {reason}",
             evidence_id=evidence_id,
             participant_id=participant_id,
-            details={
-                'confidence': confidence,
-                'reason': reason
-            },
+            details={'confidence': confidence, 'reason': reason},
             confidence=1.0 - confidence,
             recommended_action="Manual human review required for accurate transcription and translation",
-            requires_immediate_attention=confidence < 0.5
+            requires_immediate_attention=confidence < 0.5,
         )
 
         self._process_alert(alert)
         return alert
 
     def check_risk_escalation(
-        self,
-        case_id: str,
-        previous_risk: float,
-        current_risk: float,
-        escalation_threshold: float = 20.0
+        self, case_id: str, previous_risk: float, current_risk: float, escalation_threshold: float = 20.0
     ) -> Optional[Alert]:
         """
         Check for overall case risk escalation
@@ -464,7 +420,7 @@ class AlertSystem:
             Alert if created, None otherwise
         """
         risk_increase = current_risk - previous_risk
-        
+
         if risk_increase < escalation_threshold:
             return None
 
@@ -482,14 +438,10 @@ class AlertSystem:
             description=f"Overall case risk increased from {previous_risk:.0f} to {current_risk:.0f}",
             evidence_id=case_id,
             participant_id="",
-            details={
-                'previous_risk': previous_risk,
-                'current_risk': current_risk,
-                'increase': risk_increase
-            },
+            details={'previous_risk': previous_risk, 'current_risk': current_risk, 'increase': risk_increase},
             confidence=min(1.0, risk_increase / 50.0),
             recommended_action="Review all recent findings and consider escalating investigation level",
-            requires_immediate_attention=current_risk > 75
+            requires_immediate_attention=current_risk > 75,
         )
 
         self._process_alert(alert)
@@ -499,7 +451,7 @@ class AlertSystem:
         """Process alert and trigger handlers"""
         self.alerts.append(alert)
         self.alert_queue.put(alert)
-        
+
         logger.warning(f"ALERT [{alert.severity.value.upper()}] {alert.title}: {alert.description}")
 
         # Trigger handlers
@@ -553,7 +505,7 @@ class AlertSystem:
             'medium': medium,
             'low': low,
             'unacknowledged': unacknowledged,
-            'requires_attention': critical > 0 or (high > 2)
+            'requires_attention': critical > 0 or (high > 2),
         }
 
     def export_alerts(self, output_path) -> bool:
@@ -562,12 +514,12 @@ class AlertSystem:
             data = {
                 'exported_at': datetime.now().isoformat(),
                 'summary': self.get_alert_summary(),
-                'alerts': [a.to_dict() for a in self.alerts]
+                'alerts': [a.to_dict() for a in self.alerts],
             }
-            
+
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, indent=2, default=str)
-            
+
             logger.info(f"Exported {len(self.alerts)} alerts")
             return True
 

@@ -13,21 +13,22 @@ SOURCES FOR TIMELINE RECONSTRUCTION:
 8. Google Drive metadata
 """
 
+import json
 import logging
 import os
 import re
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-import json
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class TimestampSource(Enum):
     """Source of timestamp"""
+
     FILE_CREATION = "file_creation"
     FILE_MODIFICATION = "file_modification"
     FILENAME_PATTERN = "filename_pattern"
@@ -43,16 +44,18 @@ class TimestampSource(Enum):
 
 class TimelineConfidence(Enum):
     """Confidence level for timeline entry"""
-    CERTAIN = "certain"           # 100% confident (multiple sources agree)
-    HIGH = "high"                 # 90%+ (primary source + confirmation)
-    MEDIUM = "medium"             # 70-90% (single reliable source)
-    LOW = "low"                   # 50-70% (inferred or uncertain)
-    UNCERTAIN = "uncertain"       # <50% (best guess)
+
+    CERTAIN = "certain"  # 100% confident (multiple sources agree)
+    HIGH = "high"  # 90%+ (primary source + confirmation)
+    MEDIUM = "medium"  # 70-90% (single reliable source)
+    LOW = "low"  # 50-70% (inferred or uncertain)
+    UNCERTAIN = "uncertain"  # <50% (best guess)
 
 
 @dataclass
 class TimestampExtraction:
     """Extracted timestamp from a source"""
+
     timestamp: datetime
     source: TimestampSource
     confidence: float
@@ -63,6 +66,7 @@ class TimestampExtraction:
 @dataclass
 class TimelineEntry:
     """Single entry in the reconstructed timeline"""
+
     entry_id: str
     timestamp: datetime
     timestamp_confidence: TimelineConfidence
@@ -75,7 +79,7 @@ class TimelineEntry:
     duration: Optional[float] = None
     forensic_flags: List[str] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-    
+
     def to_dict(self) -> Dict:
         return {
             'entry_id': self.entry_id,
@@ -89,7 +93,7 @@ class TimelineEntry:
             'translation': self.translation,
             'duration': self.duration,
             'forensic_flags': self.forensic_flags,
-            'metadata': self.metadata
+            'metadata': self.metadata,
         }
 
 
@@ -145,14 +149,14 @@ class TimestampExtractor:
             List of extracted timestamps
         """
         extractions = []
-        
+
         # Try WhatsApp patterns
         for pattern in self.WHATSAPP_PATTERNS:
             match = re.search(pattern, filename, re.IGNORECASE)
             if match:
                 try:
                     date_str = match.group(1)
-                    
+
                     # Handle different formats
                     if len(date_str) == 8:  # YYYYMMDD
                         dt = datetime.strptime(date_str, '%Y%m%d')
@@ -170,16 +174,18 @@ class TimestampExtractor:
                                 dt = dt.replace(
                                     hour=int(time_parts[0]),
                                     minute=int(time_parts[1]),
-                                    second=int(time_parts[2]) if len(time_parts) > 2 else 0
+                                    second=int(time_parts[2]) if len(time_parts) > 2 else 0,
                                 )
 
-                    extractions.append(TimestampExtraction(
-                        timestamp=dt,
-                        source=TimestampSource.WHATSAPP_FORMAT,
-                        confidence=0.95,
-                        raw_value=match.group(0),
-                        notes=f"WhatsApp format detected: {pattern}"
-                    ))
+                    extractions.append(
+                        TimestampExtraction(
+                            timestamp=dt,
+                            source=TimestampSource.WHATSAPP_FORMAT,
+                            confidence=0.95,
+                            raw_value=match.group(0),
+                            notes=f"WhatsApp format detected: {pattern}",
+                        )
+                    )
                 except (ValueError, IndexError) as e:
                     logger.debug(f"Failed to parse WhatsApp pattern: {e}")
 
@@ -190,16 +196,18 @@ class TimestampExtractor:
                 try:
                     date_str = match.group(0)
                     dt = datetime.strptime(date_str, date_format)
-                    
+
                     # Validate date is reasonable
                     if 2000 <= dt.year <= datetime.now().year + 1:
-                        extractions.append(TimestampExtraction(
-                            timestamp=dt,
-                            source=TimestampSource.FILENAME_PATTERN,
-                            confidence=0.80,
-                            raw_value=date_str,
-                            notes=f"Date pattern: {date_format}"
-                        ))
+                        extractions.append(
+                            TimestampExtraction(
+                                timestamp=dt,
+                                source=TimestampSource.FILENAME_PATTERN,
+                                confidence=0.80,
+                                raw_value=date_str,
+                                notes=f"Date pattern: {date_format}",
+                            )
+                        )
                 except ValueError:
                     pass
 
@@ -216,33 +224,37 @@ class TimestampExtractor:
             List of extracted timestamps
         """
         extractions = []
-        
+
         try:
             stat = file_path.stat()
-            
+
             # Creation time
             if hasattr(stat, 'st_birthtime'):
                 ctime = datetime.fromtimestamp(stat.st_birthtime)
             else:
                 ctime = datetime.fromtimestamp(stat.st_ctime)
-            
-            extractions.append(TimestampExtraction(
-                timestamp=ctime,
-                source=TimestampSource.FILE_CREATION,
-                confidence=0.70,
-                raw_value=str(stat.st_ctime),
-                notes="File system creation time"
-            ))
-            
+
+            extractions.append(
+                TimestampExtraction(
+                    timestamp=ctime,
+                    source=TimestampSource.FILE_CREATION,
+                    confidence=0.70,
+                    raw_value=str(stat.st_ctime),
+                    notes="File system creation time",
+                )
+            )
+
             # Modification time
             mtime = datetime.fromtimestamp(stat.st_mtime)
-            extractions.append(TimestampExtraction(
-                timestamp=mtime,
-                source=TimestampSource.FILE_MODIFICATION,
-                confidence=0.60,
-                raw_value=str(stat.st_mtime),
-                notes="File system modification time"
-            ))
+            extractions.append(
+                TimestampExtraction(
+                    timestamp=mtime,
+                    source=TimestampSource.FILE_MODIFICATION,
+                    confidence=0.60,
+                    raw_value=str(stat.st_mtime),
+                    notes="File system modification time",
+                )
+            )
 
         except Exception as e:
             logger.error(f"Error extracting file stats: {e}")
@@ -260,33 +272,35 @@ class TimestampExtractor:
             List of extracted timestamps
         """
         extractions = []
-        
+
         try:
             from mutagen import File as MutagenFile
-            
+
             audio = MutagenFile(str(file_path))
             if audio is None:
                 return extractions
 
             # Check various metadata fields
             date_fields = ['date', 'TDRC', 'TYER', 'creation_time', 'DATE']
-            
+
             for field in date_fields:
                 if field in audio:
                     try:
                         date_str = str(audio[field][0]) if isinstance(audio[field], list) else str(audio[field])
-                        
+
                         # Try various date formats
                         for fmt in ['%Y-%m-%d', '%Y%m%d', '%Y', '%Y-%m-%dT%H:%M:%S']:
                             try:
-                                dt = datetime.strptime(date_str[:len(fmt.replace('%', ''))], fmt)
-                                extractions.append(TimestampExtraction(
-                                    timestamp=dt,
-                                    source=TimestampSource.AUDIO_METADATA,
-                                    confidence=0.85,
-                                    raw_value=date_str,
-                                    notes=f"Audio metadata field: {field}"
-                                ))
+                                dt = datetime.strptime(date_str[: len(fmt.replace('%', ''))], fmt)
+                                extractions.append(
+                                    TimestampExtraction(
+                                        timestamp=dt,
+                                        source=TimestampSource.AUDIO_METADATA,
+                                        confidence=0.85,
+                                        raw_value=date_str,
+                                        notes=f"Audio metadata field: {field}",
+                                    )
+                                )
                                 break
                             except ValueError:
                                 continue
@@ -311,27 +325,29 @@ class TimestampExtractor:
             List of extracted timestamps
         """
         extractions = []
-        
+
         try:
             from PIL import Image
             from PIL.ExifTags import TAGS
-            
+
             with Image.open(file_path) as img:
                 exif_data = img._getexif()
                 if exif_data:
                     for tag_id, value in exif_data.items():
                         tag = TAGS.get(tag_id, tag_id)
-                        
+
                         if tag in ['DateTime', 'DateTimeOriginal', 'DateTimeDigitized']:
                             try:
                                 dt = datetime.strptime(value, '%Y:%m:%d %H:%M:%S')
-                                extractions.append(TimestampExtraction(
-                                    timestamp=dt,
-                                    source=TimestampSource.EXIF_DATA,
-                                    confidence=0.95,
-                                    raw_value=value,
-                                    notes=f"EXIF field: {tag}"
-                                ))
+                                extractions.append(
+                                    TimestampExtraction(
+                                        timestamp=dt,
+                                        source=TimestampSource.EXIF_DATA,
+                                        confidence=0.95,
+                                        raw_value=value,
+                                        notes=f"EXIF field: {tag}",
+                                    )
+                                )
                             except ValueError:
                                 pass
 
@@ -353,24 +369,24 @@ class TimestampExtractor:
             List of all extracted timestamps, sorted by confidence
         """
         all_extractions = []
-        
+
         # Filename patterns
         all_extractions.extend(self.extract_from_filename(file_path.name))
-        
+
         # File system stats
         all_extractions.extend(self.extract_from_file_stats(file_path))
-        
+
         # Audio metadata (if applicable)
         if file_path.suffix.lower() in ['.mp3', '.wav', '.ogg', '.opus', '.m4a', '.flac']:
             all_extractions.extend(self.extract_from_audio_metadata(file_path))
-        
+
         # EXIF data (if applicable)
         if file_path.suffix.lower() in ['.jpg', '.jpeg', '.png', '.heic', '.mp4', '.mov']:
             all_extractions.extend(self.extract_from_exif(file_path))
-        
+
         # Sort by confidence
         all_extractions.sort(key=lambda x: x.confidence, reverse=True)
-        
+
         return all_extractions
 
 
@@ -391,7 +407,7 @@ class TimelineReconstructor:
         file_path: Path,
         speaker_id: Optional[str] = None,
         transcription: Optional[str] = None,
-        translation: Optional[str] = None
+        translation: Optional[str] = None,
     ) -> TimelineEntry:
         """
         Add file to timeline
@@ -407,10 +423,10 @@ class TimelineReconstructor:
         """
         self.entry_counter += 1
         entry_id = f"TL_{self.entry_counter:06d}"
-        
+
         # Extract timestamps
         extractions = self.extractor.extract_all(file_path)
-        
+
         # Determine best timestamp
         if extractions:
             best_timestamp = extractions[0].timestamp
@@ -418,13 +434,15 @@ class TimelineReconstructor:
         else:
             best_timestamp = datetime.now()
             confidence = TimelineConfidence.UNCERTAIN
-            extractions = [TimestampExtraction(
-                timestamp=best_timestamp,
-                source=TimestampSource.INFERRED,
-                confidence=0.1,
-                raw_value="",
-                notes="No timestamp source found"
-            )]
+            extractions = [
+                TimestampExtraction(
+                    timestamp=best_timestamp,
+                    source=TimestampSource.INFERRED,
+                    confidence=0.1,
+                    raw_value="",
+                    notes="No timestamp source found",
+                )
+            ]
 
         # Determine content type
         suffix = file_path.suffix.lower()
@@ -454,18 +472,14 @@ class TimelineReconstructor:
             metadata={
                 'filename': file_path.name,
                 'extension': file_path.suffix,
-                'size_bytes': file_path.stat().st_size if file_path.exists() else 0
-            }
+                'size_bytes': file_path.stat().st_size if file_path.exists() else 0,
+            },
         )
 
         self.entries.append(entry)
         return entry
 
-    def add_files_from_directory(
-        self,
-        directory: Path,
-        extensions: List[str] = None
-    ) -> List[TimelineEntry]:
+    def add_files_from_directory(self, directory: Path, extensions: List[str] = None) -> List[TimelineEntry]:
         """
         Add all files from directory to timeline
 
@@ -480,7 +494,7 @@ class TimelineReconstructor:
             extensions = ['.mp3', '.wav', '.ogg', '.opus', '.m4a', '.jpg', '.jpeg', '.png', '.mp4']
 
         entries = []
-        
+
         for file_path in directory.iterdir():
             if file_path.is_file() and file_path.suffix.lower() in extensions:
                 entry = self.add_file(file_path)
@@ -517,14 +531,16 @@ class TimelineReconstructor:
         """Get duration of media file"""
         try:
             from mutagen import File as MutagenFile
+
             audio = MutagenFile(str(file_path))
             if audio and hasattr(audio, 'info') and hasattr(audio.info, 'length'):
                 return audio.info.length
         except Exception:
             pass
-        
+
         try:
             import librosa
+
             duration = librosa.get_duration(path=str(file_path))
             return duration
         except Exception:
@@ -538,21 +554,11 @@ class TimelineReconstructor:
 
     def get_timeline_by_speaker(self, speaker_id: str) -> List[TimelineEntry]:
         """Get timeline entries for specific speaker"""
-        return sorted(
-            [e for e in self.entries if e.speaker_id == speaker_id],
-            key=lambda x: x.timestamp
-        )
+        return sorted([e for e in self.entries if e.speaker_id == speaker_id], key=lambda x: x.timestamp)
 
-    def get_timeline_by_date_range(
-        self,
-        start_date: datetime,
-        end_date: datetime
-    ) -> List[TimelineEntry]:
+    def get_timeline_by_date_range(self, start_date: datetime, end_date: datetime) -> List[TimelineEntry]:
         """Get timeline entries within date range"""
-        return sorted(
-            [e for e in self.entries if start_date <= e.timestamp <= end_date],
-            key=lambda x: x.timestamp
-        )
+        return sorted([e for e in self.entries if start_date <= e.timestamp <= end_date], key=lambda x: x.timestamp)
 
     def cross_reference_timestamps(self) -> Dict[str, Any]:
         """
@@ -562,7 +568,7 @@ class TimelineReconstructor:
             Analysis of timestamp patterns and adjustments
         """
         sorted_entries = self.get_sorted_timeline()
-        
+
         if len(sorted_entries) < 2:
             return {'adjustments': [], 'patterns': []}
 
@@ -572,23 +578,15 @@ class TimelineReconstructor:
         # Look for patterns in timing
         gaps = []
         for i in range(1, len(sorted_entries)):
-            gap = (sorted_entries[i].timestamp - sorted_entries[i-1].timestamp).total_seconds()
-            gaps.append({
-                'from': sorted_entries[i-1].entry_id,
-                'to': sorted_entries[i].entry_id,
-                'gap_seconds': gap
-            })
+            gap = (sorted_entries[i].timestamp - sorted_entries[i - 1].timestamp).total_seconds()
+            gaps.append({'from': sorted_entries[i - 1].entry_id, 'to': sorted_entries[i].entry_id, 'gap_seconds': gap})
 
         # Identify unusual gaps
         if gaps:
             avg_gap = sum(g['gap_seconds'] for g in gaps) / len(gaps)
             for gap in gaps:
                 if gap['gap_seconds'] > avg_gap * 10:
-                    patterns.append({
-                        'type': 'large_gap',
-                        'gap': gap,
-                        'note': 'Unusually large time gap detected'
-                    })
+                    patterns.append({'type': 'large_gap', 'gap': gap, 'note': 'Unusually large time gap detected'})
 
         # Look for timestamp clustering (multiple files at same time)
         timestamp_groups = {}
@@ -600,20 +598,17 @@ class TimelineReconstructor:
 
         for date_key, entries in timestamp_groups.items():
             if len(entries) > 5:
-                patterns.append({
-                    'type': 'cluster',
-                    'date': date_key,
-                    'count': len(entries),
-                    'entries': entries,
-                    'note': 'Multiple files from same hour'
-                })
+                patterns.append(
+                    {
+                        'type': 'cluster',
+                        'date': date_key,
+                        'count': len(entries),
+                        'entries': entries,
+                        'note': 'Multiple files from same hour',
+                    }
+                )
 
-        return {
-            'adjustments': adjustments,
-            'patterns': patterns,
-            'gaps': gaps,
-            'total_entries': len(sorted_entries)
-        }
+        return {'adjustments': adjustments, 'patterns': patterns, 'gaps': gaps, 'total_entries': len(sorted_entries)}
 
     def infer_missing_timestamps(self) -> int:
         """
@@ -628,25 +623,27 @@ class TimelineReconstructor:
         for i, entry in enumerate(sorted_entries):
             if entry.timestamp_confidence in [TimelineConfidence.UNCERTAIN, TimelineConfidence.LOW]:
                 # Try to infer from neighbors
-                prev_entry = sorted_entries[i-1] if i > 0 else None
-                next_entry = sorted_entries[i+1] if i < len(sorted_entries) - 1 else None
+                prev_entry = sorted_entries[i - 1] if i > 0 else None
+                next_entry = sorted_entries[i + 1] if i < len(sorted_entries) - 1 else None
 
                 if prev_entry and next_entry:
                     # Interpolate between neighbors
                     prev_ts = prev_entry.timestamp
                     next_ts = next_entry.timestamp
-                    
+
                     if (next_ts - prev_ts).total_seconds() < 86400:  # Within 1 day
                         # Place in middle
                         new_ts = prev_ts + (next_ts - prev_ts) / 2
                         entry.timestamp = new_ts
-                        entry.sources.append(TimestampExtraction(
-                            timestamp=new_ts,
-                            source=TimestampSource.INFERRED,
-                            confidence=0.5,
-                            raw_value="",
-                            notes="Inferred from neighboring entries"
-                        ))
+                        entry.sources.append(
+                            TimestampExtraction(
+                                timestamp=new_ts,
+                                source=TimestampSource.INFERRED,
+                                confidence=0.5,
+                                raw_value="",
+                                notes="Inferred from neighboring entries",
+                            )
+                        )
                         entry.timestamp_confidence = TimelineConfidence.LOW
                         updated += 1
 
@@ -665,11 +662,7 @@ class TimelineReconstructor:
         sorted_entries = self.get_sorted_timeline()
 
         if format == 'json':
-            return json.dumps(
-                [e.to_dict() for e in sorted_entries],
-                indent=2,
-                default=str
-            )
+            return json.dumps([e.to_dict() for e in sorted_entries], indent=2, default=str)
 
         elif format == 'csv':
             lines = ['entry_id,timestamp,confidence,content_type,speaker_id,file_path,transcription']
@@ -692,14 +685,14 @@ class TimelineReconstructor:
             current_date = None
             for entry in sorted_entries:
                 entry_date = entry.timestamp.strftime('%Y-%m-%d')
-                
+
                 if entry_date != current_date:
                     lines.append(f'\n## {entry_date}\n')
                     current_date = entry_date
 
                 time_str = entry.timestamp.strftime('%H:%M:%S')
                 confidence = entry.timestamp_confidence.value
-                
+
                 lines.append(f'### {time_str} [{confidence}]')
                 lines.append(f'- **Type**: {entry.content_type}')
                 if entry.speaker_id:
@@ -722,7 +715,7 @@ class TimelineReconstructor:
             return {'total_entries': 0}
 
         sorted_entries = self.get_sorted_timeline()
-        
+
         # Calculate statistics
         by_type = {}
         by_speaker = {}
@@ -732,15 +725,15 @@ class TimelineReconstructor:
         for entry in sorted_entries:
             # By content type
             by_type[entry.content_type] = by_type.get(entry.content_type, 0) + 1
-            
+
             # By speaker
             speaker = entry.speaker_id or 'unknown'
             by_speaker[speaker] = by_speaker.get(speaker, 0) + 1
-            
+
             # By confidence
             conf = entry.timestamp_confidence.value
             by_confidence[conf] = by_confidence.get(conf, 0) + 1
-            
+
             # Duration
             if entry.duration:
                 total_duration += entry.duration
@@ -750,13 +743,13 @@ class TimelineReconstructor:
             'date_range': {
                 'start': sorted_entries[0].timestamp.isoformat(),
                 'end': sorted_entries[-1].timestamp.isoformat(),
-                'span_days': (sorted_entries[-1].timestamp - sorted_entries[0].timestamp).days
+                'span_days': (sorted_entries[-1].timestamp - sorted_entries[0].timestamp).days,
             },
             'by_content_type': by_type,
             'by_speaker': by_speaker,
             'by_confidence': by_confidence,
             'total_duration_seconds': total_duration,
-            'total_duration_formatted': str(timedelta(seconds=int(total_duration)))
+            'total_duration_formatted': str(timedelta(seconds=int(total_duration))),
         }
 
 

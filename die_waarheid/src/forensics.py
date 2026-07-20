@@ -2,29 +2,27 @@
 Analyzes voice notes for bio-signal detection and stress indicators
 """
 
-import logging
 import gc
+import logging
 import os
-import psutil
 import threading
 import time
 import weakref
-from contextlib import contextmanager
-from typing import Dict, Tuple, Optional, List, Callable, Any
-
-import numpy as np
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import librosa
+import numpy as np
+import psutil
 import soundfile as sf
-
 from config import (
-    TARGET_SAMPLE_RATE,
-    STRESS_THRESHOLD_HIGH,
-    SILENCE_RATIO_THRESHOLD,
     INTENSITY_SPIKE_THRESHOLD,
-    STRESS_WEIGHTS
+    SILENCE_RATIO_THRESHOLD,
+    STRESS_THRESHOLD_HIGH,
+    STRESS_WEIGHTS,
+    TARGET_SAMPLE_RATE,
 )
 from src.cache import AnalysisCache
 
@@ -36,14 +34,9 @@ ENABLE_MEMORY_MONITORING = os.getenv("ENABLE_MEMORY_MONITORING", "true").lower()
 GC_COLLECTION_INTERVAL = int(os.getenv("GC_COLLECTION_INTERVAL", "10"))  # Every 10 operations
 
 # Global memory tracking
-_memory_stats = {
-    'peak_usage_mb': 0,
-    'current_usage_mb': 0,
-    'operations_count': 0,
-    'gc_collections': 0,
-    'memory_warnings': 0
-}
+_memory_stats = {'peak_usage_mb': 0, 'current_usage_mb': 0, 'operations_count': 0, 'gc_collections': 0, 'memory_warnings': 0}
 _memory_lock = threading.Lock()
+
 
 def get_memory_usage() -> float:
     """Get current memory usage in MB"""
@@ -53,25 +46,26 @@ def get_memory_usage() -> float:
     except Exception:
         return 0.0
 
+
 def update_memory_stats():
     """Update global memory statistics"""
     current_mb = get_memory_usage()
-    
+
     with _memory_lock:
         _memory_stats['current_usage_mb'] = current_mb
         _memory_stats['peak_usage_mb'] = max(_memory_stats['peak_usage_mb'], current_mb)
         _memory_stats['operations_count'] += 1
-        
+
         # Trigger garbage collection if needed
-        if (_memory_stats['operations_count'] % GC_COLLECTION_INTERVAL == 0 or 
-            current_mb > MEMORY_THRESHOLD_MB):
+        if _memory_stats['operations_count'] % GC_COLLECTION_INTERVAL == 0 or current_mb > MEMORY_THRESHOLD_MB:
             gc.collect()
             _memory_stats['gc_collections'] += 1
-            
+
             # Log warning if memory usage is high
             if current_mb > MEMORY_THRESHOLD_MB:
                 _memory_stats['memory_warnings'] += 1
                 logger.warning(f"High memory usage detected: {current_mb:.1f}MB")
+
 
 def get_memory_stats() -> Dict[str, Any]:
     """Get memory usage statistics"""
@@ -80,51 +74,55 @@ def get_memory_stats() -> Dict[str, Any]:
             **_memory_stats,
             'current_usage_mb': get_memory_usage(),
             'memory_threshold_mb': MEMORY_THRESHOLD_MB,
-            'monitoring_enabled': ENABLE_MEMORY_MONITORING
+            'monitoring_enabled': ENABLE_MEMORY_MONITORING,
         }
+
 
 @contextmanager
 def memory_managed_operation(operation_name: str = "audio_operation"):
     """Context manager for memory-managed operations"""
     start_memory = get_memory_usage()
     start_time = time.time()
-    
+
     try:
         if ENABLE_MEMORY_MONITORING:
             logger.debug(f"Starting {operation_name} - Memory: {start_memory:.1f}MB")
-        
+
         yield
-        
+
     finally:
         end_memory = get_memory_usage()
         duration = time.time() - start_time
         memory_delta = end_memory - start_memory
-        
+
         if ENABLE_MEMORY_MONITORING:
-            logger.debug(f"Completed {operation_name} - Duration: {duration:.2f}s, "
-                        f"Memory: {end_memory:.1f}MB (Δ{memory_delta:+.1f}MB)")
-        
+            logger.debug(
+                f"Completed {operation_name} - Duration: {duration:.2f}s, "
+                f"Memory: {end_memory:.1f}MB (Δ{memory_delta:+.1f}MB)"
+            )
+
         update_memory_stats()
-        
+
         # Force garbage collection if memory increased significantly
         if memory_delta > 100:  # 100MB threshold
             gc.collect()
+
 
 def optimize_array_memory(arr: np.ndarray) -> np.ndarray:
     """Optimize numpy array memory usage"""
     if arr is None or arr.size == 0:
         return arr
-    
+
     # Convert to most efficient dtype
     if arr.dtype == np.float64:
         # Check if we can safely convert to float32
         if np.allclose(arr, arr.astype(np.float32), rtol=1e-6):
             return arr.astype(np.float32)
-    
+
     # Ensure array is contiguous for better memory access
     if not arr.flags.c_contiguous:
         return np.ascontiguousarray(arr)
-    
+
     return arr
 
 
@@ -140,12 +138,12 @@ class ForensicsEngine:
         self.audio_data = None
         self.filename = None
         self.cache = AnalysisCache() if use_cache else None
-        
+
         # Memory management
         self._audio_buffer_refs = weakref.WeakSet()  # Track audio buffers
         self._analysis_cache = {}  # Local analysis cache
         self._max_cache_size = 10  # Limit cache size
-        
+
         # Performance tracking
         self._operation_count = 0
         self._last_cleanup = time.time()
@@ -169,24 +167,23 @@ class ForensicsEngine:
 
                 # Clear previous audio data to free memory
                 self._cleanup_audio_data()
-                
+
                 # Load audio with memory optimization
                 self.audio_data, sr = librosa.load(
                     str(file_path),
                     sr=self.sample_rate,
                     mono=True,
-                    dtype=np.float32  # Use float32 instead of float64 to save memory
+                    dtype=np.float32,  # Use float32 instead of float64 to save memory
                 )
-                
+
                 # Optimize array memory layout
                 self.audio_data = optimize_array_memory(self.audio_data)
-                
+
                 self.filename = file_path.name
                 duration = len(self.audio_data) / self.sample_rate
                 memory_mb = self.audio_data.nbytes / 1024 / 1024
 
-                logger.info(f"Loaded audio file: {self.filename} "
-                           f"(duration: {duration:.2f}s, memory: {memory_mb:.1f}MB)")
+                logger.info(f"Loaded audio file: {self.filename} " f"(duration: {duration:.2f}s, memory: {memory_mb:.1f}MB)")
                 return True, f"Successfully loaded {self.filename}"
 
             except FileNotFoundError:
@@ -210,7 +207,7 @@ class ForensicsEngine:
         """Clean up analysis cache if it gets too large"""
         if len(self._analysis_cache) > self._max_cache_size:
             # Remove oldest entries (simple FIFO)
-            keys_to_remove = list(self._analysis_cache.keys())[:-self._max_cache_size//2]
+            keys_to_remove = list(self._analysis_cache.keys())[: -self._max_cache_size // 2]
             for key in keys_to_remove:
                 del self._analysis_cache[key]
             gc.collect()
@@ -220,10 +217,9 @@ class ForensicsEngine:
         """Check if cleanup should be performed"""
         self._operation_count += 1
         current_time = time.time()
-        
+
         # Cleanup every 10 operations or every 5 minutes
-        if (self._operation_count % 10 == 0 or 
-            current_time - self._last_cleanup > 300):
+        if self._operation_count % 10 == 0 or current_time - self._last_cleanup > 300:
             self._last_cleanup = current_time
             return True
         return False
@@ -248,26 +244,23 @@ class ForensicsEngine:
                     return self._analysis_cache[cache_key]
 
                 f0, voiced_flag, voiced_probs = librosa.pyin(
-                    self.audio_data,
-                    fmin=librosa.note_to_hz('C2'),
-                    fmax=librosa.note_to_hz('C7'),
-                    sr=self.sample_rate
+                    self.audio_data, fmin=librosa.note_to_hz('C2'), fmax=librosa.note_to_hz('C7'), sr=self.sample_rate
                 )
 
                 times = librosa.frames_to_time(np.arange(len(f0)), sr=self.sample_rate)
-                
+
                 # Optimize memory usage
                 f0 = optimize_array_memory(f0)
                 times = optimize_array_memory(times)
-                
+
                 # Cache result
                 result = (f0, times)
                 self._analysis_cache[cache_key] = result
-                
+
                 # Cleanup if needed
                 if self._should_cleanup():
                     self._cleanup_cache()
-                
+
                 logger.debug(f"Extracted pitch contour with {len(f0)} frames")
                 return result
 
@@ -291,15 +284,15 @@ class ForensicsEngine:
 
         try:
             valid_f0 = f0[~np.isnan(f0)]
-            
+
             if len(valid_f0) < 2:
                 return 0.0
 
             pitch_changes = np.diff(valid_f0)
             volatility = np.std(pitch_changes)
-            
+
             normalized_volatility = min(100, (volatility / 50) * 100)
-            
+
             logger.debug(f"Pitch volatility: {normalized_volatility:.2f}")
             return float(normalized_volatility)
 
@@ -329,10 +322,7 @@ class ForensicsEngine:
                     logger.debug("Using cached silence ratio")
                     return self._analysis_cache[cache_key]
 
-                S = librosa.feature.melspectrogram(
-                    y=self.audio_data,
-                    sr=self.sample_rate
-                )
+                S = librosa.feature.melspectrogram(y=self.audio_data, sr=self.sample_rate)
                 S_db = librosa.power_to_db(S, ref=np.max)
 
                 # Optimize memory usage
@@ -372,20 +362,13 @@ class ForensicsEngine:
             return {'mean': 0.0, 'max': 0.0, 'std': 0.0}
 
         try:
-            S = librosa.feature.melspectrogram(
-                y=self.audio_data,
-                sr=self.sample_rate
-            )
+            S = librosa.feature.melspectrogram(y=self.audio_data, sr=self.sample_rate)
             S_db = librosa.power_to_db(S, ref=np.max)
-            
+
             energy = np.mean(S_db, axis=0)
-            
-            metrics = {
-                'mean': float(np.mean(energy)),
-                'max': float(np.max(energy)),
-                'std': float(np.std(energy))
-            }
-            
+
+            metrics = {'mean': float(np.mean(energy)), 'max': float(np.max(energy)), 'std': float(np.std(energy))}
+
             logger.debug(f"Intensity metrics: {metrics}")
             return metrics
 
@@ -412,14 +395,10 @@ class ForensicsEngine:
             return 0.0
 
         try:
-            mfcc = librosa.feature.mfcc(
-                y=self.audio_data,
-                sr=self.sample_rate,
-                n_mfcc=13
-            )
-            
+            mfcc = librosa.feature.mfcc(y=self.audio_data, sr=self.sample_rate, n_mfcc=13)
+
             mfcc_variance = np.var(mfcc)
-            
+
             logger.debug(f"MFCC variance: {mfcc_variance:.2f}")
             return float(mfcc_variance)
 
@@ -441,7 +420,7 @@ class ForensicsEngine:
         try:
             zcr = librosa.feature.zero_crossing_rate(self.audio_data)[0]
             mean_zcr = np.mean(zcr)
-            
+
             logger.debug(f"Zero crossing rate: {mean_zcr:.4f}")
             return float(mean_zcr)
 
@@ -461,13 +440,10 @@ class ForensicsEngine:
             return 0.0
 
         try:
-            spectral_centroids = librosa.feature.spectral_centroid(
-                y=self.audio_data,
-                sr=self.sample_rate
-            )[0]
-            
+            spectral_centroids = librosa.feature.spectral_centroid(y=self.audio_data, sr=self.sample_rate)[0]
+
             mean_centroid = np.mean(spectral_centroids)
-            
+
             logger.debug(f"Spectral centroid: {mean_centroid:.2f} Hz")
             return float(mean_centroid)
 
@@ -492,51 +468,38 @@ class ForensicsEngine:
             Dictionary with all forensic metrics
         """
         file_path = Path(file_path)
-        
+
         if self.cache:
             cached_result = self.cache.get(file_path)
             if cached_result:
                 logger.info(f"Using cached result for {file_path.name}")
                 return cached_result
-        
+
         success, message = self.load_audio(file_path)
-        
+
         if not success:
             logger.error(f"Cannot analyze: {message}")
-            return {
-                'success': False,
-                'message': message,
-                'filename': str(file_path)
-            }
+            return {'success': False, 'message': message, 'filename': str(file_path)}
 
         try:
             # Validate audio data before analysis
             if self.audio_data is None or len(self.audio_data) == 0:
                 logger.error("Empty or invalid audio data")
-                return {
-                    'success': False,
-                    'message': "Empty or invalid audio data",
-                    'filename': str(file_path)
-                }
-            
+                return {'success': False, 'message': "Empty or invalid audio data", 'filename': str(file_path)}
+
             f0, times = self.extract_pitch()
-            
+
             pitch_volatility = self.calculate_pitch_volatility(f0)
             silence_ratio = self.calculate_silence_ratio()
             intensity = self.calculate_intensity()
             mfcc_variance = self.calculate_mfcc_variance()
             zcr = self.calculate_zero_crossing_rate()
             spectral_centroid = self.calculate_spectral_centroid()
-            
+
             duration = len(self.audio_data) / self.sample_rate
-            
-            stress_level = self._calculate_stress_level(
-                pitch_volatility,
-                silence_ratio,
-                intensity['max'],
-                mfcc_variance
-            )
-            
+
+            stress_level = self._calculate_stress_level(pitch_volatility, silence_ratio, intensity['max'], mfcc_variance)
+
             result = {
                 'success': True,
                 'filename': self.filename,
@@ -549,22 +512,18 @@ class ForensicsEngine:
                 'spectral_centroid': spectral_centroid,
                 'stress_level': stress_level,
                 'stress_threshold_exceeded': stress_level > STRESS_THRESHOLD_HIGH,
-                'high_cognitive_load': silence_ratio > SILENCE_RATIO_THRESHOLD
+                'high_cognitive_load': silence_ratio > SILENCE_RATIO_THRESHOLD,
             }
-            
+
             if self.cache:
                 self.cache.set(file_path, result)
-            
+
             logger.info(f"Analysis complete for {self.filename}: stress_level={stress_level:.2f}")
             return result
 
         except Exception as e:
             logger.error(f"Error during analysis: {str(e)}")
-            return {
-                'success': False,
-                'message': f"Analysis error: {str(e)}",
-                'filename': self.filename
-            }
+            return {'success': False, 'message': f"Analysis error: {str(e)}", 'filename': self.filename}
 
     def _calculate_stress_level(
         self,
@@ -573,7 +532,7 @@ class ForensicsEngine:
         intensity_max: Optional[float] = None,
         mfcc_variance: Optional[float] = None,
         mean_pitch: Optional[float] = None,
-        pitch_std: Optional[float] = None
+        pitch_std: Optional[float] = None,
     ) -> float:
         """
         Calculate composite stress level from multiple bio-signals using configurable weights
@@ -603,35 +562,42 @@ class ForensicsEngine:
 
             normalized_intensity = max(0, min(100, (im + 80) / 80 * 100))
             normalized_mfcc = min(100, mv)
-            
+
             pitch_component = pv * STRESS_WEIGHTS['pitch']
             silence_component = (sr * 100) * STRESS_WEIGHTS['silence']
             intensity_component = normalized_intensity * STRESS_WEIGHTS['intensity']
             mfcc_component = normalized_mfcc * STRESS_WEIGHTS['mfcc']
-            
+
             stress_level = pitch_component + silence_component + intensity_component + mfcc_component
-            
-            logger.debug(f"Stress components - pitch: {pitch_component:.2f}, silence: {silence_component:.2f}, intensity: {intensity_component:.2f}, mfcc: {mfcc_component:.2f}")
-            
+
+            logger.debug(
+                f"Stress components - pitch: {pitch_component:.2f}, silence: {silence_component:.2f}, intensity: {intensity_component:.2f}, mfcc: {mfcc_component:.2f}"
+            )
+
             return min(100, max(0, stress_level))
 
         except Exception as e:
             logger.error(f"Error calculating stress level: {str(e)}")
             return 0.0
 
-    def calculate_stress_level(self, pitch_volatility: float, silence_ratio: float, 
-                              intensity_max: float, mfcc_variance: float, 
-                              zero_crossing_rate: float = 0.0) -> float:
+    def calculate_stress_level(
+        self,
+        pitch_volatility: float,
+        silence_ratio: float,
+        intensity_max: float,
+        mfcc_variance: float,
+        zero_crossing_rate: float = 0.0,
+    ) -> float:
         """
         Public wrapper for stress level calculation
-        
+
         Args:
             pitch_volatility: Pitch volatility value
             silence_ratio: Silence ratio value
             intensity_max: Maximum intensity value
             mfcc_variance: MFCC variance value
             zero_crossing_rate: Zero crossing rate (optional, for future use)
-            
+
         Returns:
             Stress level (0-100)
         """
@@ -678,7 +644,9 @@ class ForensicsEngine:
             'avg_silence_ratio': float(silence_ratio),
         }
 
-    def batch_analyze(self, file_paths: List[Path], progress_callback: Optional[Callable[[int, int, str], None]] = None) -> List[Dict]:
+    def batch_analyze(
+        self, file_paths: List[Path], progress_callback: Optional[Callable[[int, int, str], None]] = None
+    ) -> List[Dict]:
         """
         Analyze multiple audio files sequentially
 
@@ -691,18 +659,20 @@ class ForensicsEngine:
         """
         results = []
         total = len(file_paths)
-        
+
         for idx, file_path in enumerate(file_paths):
             if progress_callback:
                 progress_callback(idx + 1, total, file_path.name)
             logger.info(f"Analyzing file {idx + 1}/{total}: {file_path.name}")
             result = self.analyze(file_path)
             results.append(result)
-        
+
         logger.info(f"Batch analysis complete: {len(results)} files processed")
         return results
 
-    def batch_analyze_parallel(self, file_paths: List[Path], max_workers: int = 4, progress_callback: Optional[Callable[[int, int, str], None]] = None) -> List[Dict]:
+    def batch_analyze_parallel(
+        self, file_paths: List[Path], max_workers: int = 4, progress_callback: Optional[Callable[[int, int, str], None]] = None
+    ) -> List[Dict]:
         """
         Analyze multiple audio files in parallel
 
@@ -717,30 +687,26 @@ class ForensicsEngine:
         results = []
         total = len(file_paths)
         completed = [0]
-        
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(self.analyze, fp): fp for fp in file_paths}
-            
+
             for future in as_completed(futures):
                 try:
                     result = future.result()
                     results.append(result)
                     completed[0] += 1
-                    
+
                     if progress_callback:
                         file_path = futures[future]
                         progress_callback(completed[0], total, file_path.name)
-                    
+
                     logger.info(f"Completed {completed[0]}/{total}: {futures[future].name}")
                 except Exception as e:
                     file_path = futures[future]
                     logger.error(f"Error processing {file_path}: {str(e)}")
-                    results.append({
-                        'success': False,
-                        'message': f'Analysis error: {str(e)}',
-                        'filename': file_path.name
-                    })
-        
+                    results.append({'success': False, 'message': f'Analysis error: {str(e)}', 'filename': file_path.name})
+
         logger.info(f"Parallel batch analysis complete: {len(results)} files processed")
         return results
 
@@ -748,7 +714,7 @@ class ForensicsEngine:
         """Extract pitch features (mean and standard deviation)"""
         if self.audio_data is None:
             return 0.0, 0.0
-        
+
         f0, secondary = self.extract_pitch()
         if f0.size == 0:
             return 0.0, 0.0
@@ -759,10 +725,10 @@ class ForensicsEngine:
             voiced_f0 = f0[secondary]
         else:
             voiced_f0 = f0[~np.isnan(f0)]
-        
+
         if len(voiced_f0) == 0:
             return 0.0, 0.0
-        
+
         return float(np.mean(voiced_f0)), float(np.std(voiced_f0))
 
     def _extract_silence_ratio(self) -> float:
@@ -780,7 +746,7 @@ class ForensicsEngine:
 
 if __name__ == "__main__":
     engine = ForensicsEngine()
-    
+
     test_file = Path("data/audio/test_audio.wav")
     if test_file.exists():
         result = engine.analyze(test_file)

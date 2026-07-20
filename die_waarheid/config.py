@@ -3,9 +3,10 @@ Configuration Settings for Die Waarheid
 Central configuration management for all application settings
 """
 
-import os
 import logging
+import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,8 +26,7 @@ REPORTS_DIR = OUTPUT_DIR / "reports"
 EXPORTS_DIR = OUTPUT_DIR / "exports"
 CREDENTIALS_DIR = BASE_DIR / "credentials"
 
-for directory in [DATA_DIR, AUDIO_DIR, TEXT_DIR, TEMP_DIR, OUTPUT_DIR,
-                  MOBITAB_DIR, REPORTS_DIR, EXPORTS_DIR, CREDENTIALS_DIR]:
+for directory in [DATA_DIR, AUDIO_DIR, TEXT_DIR, TEMP_DIR, OUTPUT_DIR, MOBITAB_DIR, REPORTS_DIR, EXPORTS_DIR, CREDENTIALS_DIR]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # ==============================================================================
@@ -86,12 +86,7 @@ STRESS_THRESHOLD_HIGH = 50
 SILENCE_RATIO_THRESHOLD = 0.4
 INTENSITY_SPIKE_THRESHOLD = 0.7
 
-STRESS_WEIGHTS = {
-    'pitch': 0.35,
-    'silence': 0.20,
-    'intensity': 0.25,
-    'mfcc': 0.20
-}
+STRESS_WEIGHTS = {'pitch': 0.35, 'silence': 0.20, 'intensity': 0.25, 'mfcc': 0.20}
 
 # Thresholds for pattern detection
 GASLIGHTING_THRESHOLD = 0.3
@@ -99,22 +94,46 @@ TOXICITY_THRESHOLD = 0.4
 NARCISSISTIC_PATTERN_THRESHOLD = 0.35
 
 GASLIGHTING_PHRASES = [
-    "never said that", "you're crazy", "imagining things",
-    "overreacting", "too sensitive", "making things up",
-    "didn't happen", "in your head", "being dramatic",
-    "jy dink te veel", "jy is mal", "dit het nooit gebeur nie"
+    "never said that",
+    "you're crazy",
+    "imagining things",
+    "overreacting",
+    "too sensitive",
+    "making things up",
+    "didn't happen",
+    "in your head",
+    "being dramatic",
+    "jy dink te veel",
+    "jy is mal",
+    "dit het nooit gebeur nie",
 ]
 
 TOXICITY_PHRASES = [
-    "stupid", "hate", "idiot", "shut up", "dumb", "useless",
-    "pathetic", "loser", "worthless", "disgusting",
-    "dom", "haat", "idioot", "hou jou bek", "nutteloos"
+    "stupid",
+    "hate",
+    "idiot",
+    "shut up",
+    "dumb",
+    "useless",
+    "pathetic",
+    "loser",
+    "worthless",
+    "disgusting",
+    "dom",
+    "haat",
+    "idioot",
+    "hou jou bek",
+    "nutteloos",
 ]
 
 NARCISSISTIC_PATTERNS = [
-    "I'm the victim", "you made me", "look what you made me do",
-    "everyone agrees with me", "nobody likes you",
-    "ek is die slagoffer", "jy het my gemaak"
+    "I'm the victim",
+    "you made me",
+    "look what you made me do",
+    "everyone agrees with me",
+    "nobody likes you",
+    "ek is die slagoffer",
+    "jy het my gemaak",
 ]
 
 # ==============================================================================
@@ -132,7 +151,7 @@ MOBITAB_COLUMNS = [
     "Pitch_Volatility",
     "Silence_Ratio",
     "Intensity_Max",
-    "Forensic_Flag"
+    "Forensic_Flag",
 ]
 
 MOBITAB_FILENAME = "timeline.md"
@@ -197,10 +216,7 @@ LOG_DIR.mkdir(exist_ok=True)
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(LOG_FILE),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.FileHandler(LOG_FILE), logging.StreamHandler()],
 )
 
 logger = logging.getLogger(__name__)
@@ -302,6 +318,7 @@ AUTHOR = "AN3S Workspace"
 # VALIDATION
 # ==============================================================================
 
+
 def validate_config():
     """Validate critical configuration settings"""
     errors = []
@@ -336,20 +353,21 @@ def get_config_summary():
 
 if __name__ == "__main__":
     errors, warnings = validate_config()
-    
+
     if errors:
         print("Configuration Errors:")
         for error in errors:
             print(f"  {error}")
-    
+
     if warnings:
         print("Configuration Warnings:")
         for warning in warnings:
             print(f"  {warning}")
-    
+
     if not errors and not warnings:
         print("✅ Configuration is valid")
-    
+
     print("\nConfiguration Summary:")
     import json
+
     print(json.dumps(get_config_summary(), indent=2))

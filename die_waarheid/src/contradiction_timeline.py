@@ -11,18 +11,19 @@ FEATURES:
 - Interactive HTML export
 """
 
+import json
 import logging
-from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-import json
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 
 class StatementType(Enum):
     """Type of statement"""
+
     TEXT_MESSAGE = "text_message"
     VOICE_NOTE = "voice_note"
     TRANSCRIPTION = "transcription"
@@ -31,17 +32,18 @@ class StatementType(Enum):
 @dataclass
 class Statement:
     """Single statement from participant"""
+
     statement_id: str
     participant_id: str
     timestamp: datetime
     statement_type: StatementType
     content: str
-    
+
     # Analysis
     key_claims: List[str]
     emotional_tone: str
     stress_level: Optional[float]
-    
+
     # Contradictions
     contradicts_statement_id: Optional[str] = None
     contradiction_confidence: float = 0.0
@@ -51,22 +53,23 @@ class Statement:
 @dataclass
 class ContradictionEvent:
     """Contradiction between two statements"""
+
     contradiction_id: str
     statement_a_id: str
     statement_b_id: str
     participant_id: str
-    
+
     # Timeline
     statement_a_time: datetime
     statement_b_time: datetime
     time_gap_days: float
-    
+
     # Details
     claim_a: str
     claim_b: str
     contradiction_type: str
     confidence: float
-    
+
     # Analysis
     what_changed: str
     possible_reasons: List[str]
@@ -92,7 +95,7 @@ class ContradictionTimelineAnalyzer:
         content: str,
         key_claims: List[str],
         emotional_tone: str = "neutral",
-        stress_level: Optional[float] = None
+        stress_level: Optional[float] = None,
     ) -> Statement:
         """
         Add statement to timeline
@@ -118,17 +121,13 @@ class ContradictionTimelineAnalyzer:
             content=content,
             key_claims=key_claims,
             emotional_tone=emotional_tone,
-            stress_level=stress_level
+            stress_level=stress_level,
         )
 
         self.statements[statement_id] = statement
         return statement
 
-    def detect_contradictions(
-        self,
-        participant_id: str,
-        contradiction_pairs: List[Tuple[str, str, str, float, str]]
-    ):
+    def detect_contradictions(self, participant_id: str, contradiction_pairs: List[Tuple[str, str, str, float, str]]):
         """
         Detect contradictions between statements
 
@@ -168,18 +167,14 @@ class ContradictionTimelineAnalyzer:
                 what_changed=f"Changed from '{claim_a}' to '{claim_b}'",
                 possible_reasons=self._generate_possible_reasons(
                     contradiction_type, time_gap, stmt_a.stress_level, stmt_b.stress_level
-                )
+                ),
             )
 
             self.contradictions.append(contradiction)
             logger.info(f"Detected contradiction: {contradiction_id}")
 
     def _generate_possible_reasons(
-        self,
-        contradiction_type: str,
-        time_gap_days: float,
-        stress_a: Optional[float],
-        stress_b: Optional[float]
+        self, contradiction_type: str, time_gap_days: float, stress_a: Optional[float], stress_b: Optional[float]
     ) -> List[str]:
         """Generate possible reasons for contradiction"""
         reasons = []
@@ -214,10 +209,7 @@ class ContradictionTimelineAnalyzer:
         Returns:
             Sorted list of statements with contradiction info
         """
-        participant_statements = [
-            s for s in self.statements.values()
-            if s.participant_id == participant_id
-        ]
+        participant_statements = [s for s in self.statements.values() if s.participant_id == participant_id]
 
         # Sort by timestamp
         participant_statements.sort(key=lambda x: x.timestamp)
@@ -226,39 +218,38 @@ class ContradictionTimelineAnalyzer:
         for stmt in participant_statements:
             # Find contradictions involving this statement
             stmt_contradictions = [
-                c for c in self.contradictions
+                c
+                for c in self.contradictions
                 if c.statement_a_id == stmt.statement_id or c.statement_b_id == stmt.statement_id
             ]
 
-            timeline.append({
-                'statement_id': stmt.statement_id,
-                'timestamp': stmt.timestamp.isoformat(),
-                'type': stmt.statement_type.value,
-                'content': stmt.content[:200],
-                'key_claims': stmt.key_claims,
-                'emotional_tone': stmt.emotional_tone,
-                'stress_level': stmt.stress_level,
-                'contradictions': [
-                    {
-                        'contradiction_id': c.contradiction_id,
-                        'with_statement': c.statement_b_id if c.statement_a_id == stmt.statement_id else c.statement_a_id,
-                        'confidence': c.confidence,
-                        'type': c.contradiction_type
-                    }
-                    for c in stmt_contradictions
-                ]
-            })
+            timeline.append(
+                {
+                    'statement_id': stmt.statement_id,
+                    'timestamp': stmt.timestamp.isoformat(),
+                    'type': stmt.statement_type.value,
+                    'content': stmt.content[:200],
+                    'key_claims': stmt.key_claims,
+                    'emotional_tone': stmt.emotional_tone,
+                    'stress_level': stmt.stress_level,
+                    'contradictions': [
+                        {
+                            'contradiction_id': c.contradiction_id,
+                            'with_statement': c.statement_b_id if c.statement_a_id == stmt.statement_id else c.statement_a_id,
+                            'confidence': c.confidence,
+                            'type': c.contradiction_type,
+                        }
+                        for c in stmt_contradictions
+                    ],
+                }
+            )
 
         return timeline
 
     def get_contradiction_summary(self) -> Dict[str, Any]:
         """Get summary of all contradictions"""
         if not self.contradictions:
-            return {
-                'total_contradictions': 0,
-                'by_type': {},
-                'critical_contradictions': 0
-            }
+            return {'total_contradictions': 0, 'by_type': {}, 'critical_contradictions': 0}
 
         by_type = {}
         critical = 0
@@ -274,7 +265,9 @@ class ContradictionTimelineAnalyzer:
             'total_contradictions': len(self.contradictions),
             'by_type': by_type,
             'critical_contradictions': critical,
-            'average_confidence': sum(c.confidence for c in self.contradictions) / len(self.contradictions) if self.contradictions else 0.0
+            'average_confidence': (
+                sum(c.confidence for c in self.contradictions) / len(self.contradictions) if self.contradictions else 0.0
+            ),
         }
 
     def generate_html_timeline(self, participant_id: str, output_path: str) -> bool:
@@ -468,11 +461,11 @@ class ContradictionTimelineAnalyzer:
                         'contradiction_type': c.contradiction_type,
                         'confidence': c.confidence,
                         'what_changed': c.what_changed,
-                        'possible_reasons': c.possible_reasons
+                        'possible_reasons': c.possible_reasons,
                     }
                     for c in self.contradictions
                     if c.participant_id == participant_id
-                ]
+                ],
             }
 
             with open(output_path, 'w', encoding='utf-8') as f:

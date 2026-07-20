@@ -6,19 +6,17 @@ SQLite database with SQLAlchemy ORM for persistent storage
 import logging
 import os
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
+from datetime import datetime, timedelta
 from functools import wraps
-
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, JSON, Index, func
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, joinedload, selectinload
-from sqlalchemy.pool import StaticPool, QueuePool
-from sqlalchemy.sql import text
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from config import TEMP_DIR
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Index, Integer, String, Text, create_engine, func
+from sqlalchemy.orm import Session, declarative_base, joinedload, selectinload, sessionmaker
+from sqlalchemy.pool import QueuePool, StaticPool
+from sqlalchemy.sql import text
 
 logger = logging.getLogger(__name__)
 
@@ -39,17 +37,19 @@ ENABLE_QUERY_CACHE = os.getenv("ENABLE_QUERY_CACHE", "true").lower() == "true"
 # Simple in-memory cache for query results
 _query_cache: Dict[str, Dict[str, Any]] = {}
 
+
 def query_cache(ttl: int = QUERY_CACHE_TTL):
     """Decorator for caching query results"""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             if not ENABLE_QUERY_CACHE:
                 return func(*args, **kwargs)
-            
+
             # Create cache key from function name and arguments
             cache_key = f"{func.__name__}:{hash(str(args) + str(sorted(kwargs.items())))}"
-            
+
             # Check if cached result exists and is still valid
             if cache_key in _query_cache:
                 cached_data = _query_cache[cache_key]
@@ -59,39 +59,40 @@ def query_cache(ttl: int = QUERY_CACHE_TTL):
                 else:
                     # Remove expired cache entry
                     del _query_cache[cache_key]
-            
+
             # Execute function and cache result
             result = func(*args, **kwargs)
-            _query_cache[cache_key] = {
-                'result': result,
-                'timestamp': time.time()
-            }
+            _query_cache[cache_key] = {'result': result, 'timestamp': time.time()}
             logger.debug(f"Cached result for {func.__name__}")
             return result
+
         return wrapper
+
     return decorator
+
 
 def clear_query_cache():
     """Clear all cached query results"""
     _query_cache.clear()
     logger.info("Query cache cleared")
 
+
 def get_cache_stats() -> Dict[str, Any]:
     """Get query cache statistics"""
     current_time = time.time()
-    valid_entries = sum(1 for entry in _query_cache.values() 
-                       if current_time - entry['timestamp'] < QUERY_CACHE_TTL)
-    
+    valid_entries = sum(1 for entry in _query_cache.values() if current_time - entry['timestamp'] < QUERY_CACHE_TTL)
+
     return {
         'total_entries': len(_query_cache),
         'valid_entries': valid_entries,
         'expired_entries': len(_query_cache) - valid_entries,
-        'cache_enabled': ENABLE_QUERY_CACHE
+        'cache_enabled': ENABLE_QUERY_CACHE,
     }
 
 
 class AnalysisResult(Base):
     """Forensic analysis result storage with optimized indexes"""
+
     __tablename__ = "analysis_results"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -122,6 +123,7 @@ class AnalysisResult(Base):
 
 class Message(Base):
     """WhatsApp message storage with optimized indexes"""
+
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -142,6 +144,7 @@ class Message(Base):
 
 class ConversationAnalysis(Base):
     """Conversation analysis storage"""
+
     __tablename__ = "conversation_analyses"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -158,6 +161,7 @@ class ConversationAnalysis(Base):
 
 class PsychologicalProfile(Base):
     """Psychological profile storage"""
+
     __tablename__ = "psychological_profiles"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -175,6 +179,7 @@ class PsychologicalProfile(Base):
 
 class AnalysisSession(Base):
     """Analysis session tracking"""
+
     __tablename__ = "analysis_sessions"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -224,12 +229,9 @@ class DatabaseManager:
                 self.engine = create_engine(
                     self.database_url,
                     poolclass=StaticPool,
-                    connect_args={
-                        "check_same_thread": False,
-                        "timeout": DB_POOL_TIMEOUT
-                    },
+                    connect_args={"check_same_thread": False, "timeout": DB_POOL_TIMEOUT},
                     pool_pre_ping=True,
-                    echo=False
+                    echo=False,
                 )
             else:
                 # PostgreSQL/MySQL with QueuePool for production
@@ -241,9 +243,9 @@ class DatabaseManager:
                     pool_recycle=DB_POOL_RECYCLE,
                     pool_timeout=DB_POOL_TIMEOUT,
                     pool_pre_ping=True,
-                    echo=False
+                    echo=False,
                 )
-            
+
             self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
             Base.metadata.create_all(bind=self.engine)
             logger.info(f"Database initialized with connection pooling: {self.database_url}")
@@ -256,13 +258,13 @@ class DatabaseManager:
     def get_pool_status(self) -> dict:
         """
         Get connection pool status information
-        
+
         Returns:
             Dictionary with pool statistics
         """
         if not self.engine:
             return {"status": "not_initialized"}
-        
+
         pool = self.engine.pool
         return {
             "pool_size": getattr(pool, 'size', lambda: 'N/A')(),
@@ -275,7 +277,7 @@ class DatabaseManager:
     def get_raw_session(self) -> Session:
         """Get raw database session (caller is responsible for commit and close)"""
         return self.SessionLocal()
-    
+
     @contextmanager
     def session_scope(self):
         """Provide a transactional scope around a series of operations"""
@@ -308,20 +310,20 @@ class DatabaseManager:
 
             with self.session_scope() as session:
                 analysis = AnalysisResult(
-                case_id=case_id,
-                filename=filename,
-                duration=result.get('duration'),
-                pitch_volatility=result.get('pitch_volatility'),
-                silence_ratio=result.get('silence_ratio'),
-                intensity_mean=result.get('intensity', {}).get('mean'),
-                intensity_max=result.get('intensity', {}).get('max'),
-                intensity_std=result.get('intensity', {}).get('std'),
-                mfcc_variance=result.get('mfcc_variance'),
-                zero_crossing_rate=result.get('zero_crossing_rate'),
-                spectral_centroid=result.get('spectral_centroid'),
-                stress_level=result.get('stress_level'),
-                stress_threshold_exceeded=result.get('stress_threshold_exceeded'),
-                high_cognitive_load=result.get('high_cognitive_load')
+                    case_id=case_id,
+                    filename=filename,
+                    duration=result.get('duration'),
+                    pitch_volatility=result.get('pitch_volatility'),
+                    silence_ratio=result.get('silence_ratio'),
+                    intensity_mean=result.get('intensity', {}).get('mean'),
+                    intensity_max=result.get('intensity', {}).get('max'),
+                    intensity_std=result.get('intensity', {}).get('std'),
+                    mfcc_variance=result.get('mfcc_variance'),
+                    zero_crossing_rate=result.get('zero_crossing_rate'),
+                    spectral_centroid=result.get('spectral_centroid'),
+                    stress_level=result.get('stress_level'),
+                    stress_threshold_exceeded=result.get('stress_threshold_exceeded'),
+                    high_cognitive_load=result.get('high_cognitive_load'),
                 )
                 session.add(analysis)
             logger.info(f"Stored analysis result for {result.get('filename')}")
@@ -345,11 +347,11 @@ class DatabaseManager:
         try:
             with self.session_scope() as session:
                 msg = Message(
-                case_id=case_id,
-                timestamp=message.get('timestamp'),
-                sender=message.get('sender'),
-                text=message.get('text'),
-                message_type=message.get('message_type', 'text')
+                    case_id=case_id,
+                    timestamp=message.get('timestamp'),
+                    sender=message.get('sender'),
+                    text=message.get('text'),
+                    message_type=message.get('message_type', 'text'),
                 )
                 session.add(msg)
             return True
@@ -372,14 +374,14 @@ class DatabaseManager:
         try:
             with self.session_scope() as session:
                 conv_analysis = ConversationAnalysis(
-                case_id=case_id,
-                total_messages=analysis.get('total_messages'),
-                overall_tone=analysis.get('overall_tone'),
-                power_dynamics=analysis.get('power_dynamics'),
-                communication_style=analysis.get('communication_style'),
-                conflict_level=analysis.get('conflict_level'),
-                manipulation_indicators=analysis.get('manipulation_indicators'),
-                summary=analysis.get('summary')
+                    case_id=case_id,
+                    total_messages=analysis.get('total_messages'),
+                    overall_tone=analysis.get('overall_tone'),
+                    power_dynamics=analysis.get('power_dynamics'),
+                    communication_style=analysis.get('communication_style'),
+                    conflict_level=analysis.get('conflict_level'),
+                    manipulation_indicators=analysis.get('manipulation_indicators'),
+                    summary=analysis.get('summary'),
                 )
                 session.add(conv_analysis)
             logger.info(f"Stored conversation analysis for case {case_id}")
@@ -403,14 +405,14 @@ class DatabaseManager:
         try:
             with self.session_scope() as session:
                 psych_profile = PsychologicalProfile(
-                case_id=case_id,
-                personality_traits=profile.get('personality_traits'),
-                communication_patterns=profile.get('communication_patterns'),
-                emotional_regulation=profile.get('emotional_regulation'),
-                stress_indicators=profile.get('stress_indicators'),
-                relationship_dynamics=profile.get('relationship_dynamics'),
-                risk_assessment=profile.get('risk_assessment'),
-                recommendations=profile.get('recommendations')
+                    case_id=case_id,
+                    personality_traits=profile.get('personality_traits'),
+                    communication_patterns=profile.get('communication_patterns'),
+                    emotional_regulation=profile.get('emotional_regulation'),
+                    stress_indicators=profile.get('stress_indicators'),
+                    relationship_dynamics=profile.get('relationship_dynamics'),
+                    risk_assessment=profile.get('risk_assessment'),
+                    recommendations=profile.get('recommendations'),
                 )
                 session.add(psych_profile)
             logger.info(f"Stored psychological profile for case {case_id}")
@@ -434,9 +436,12 @@ class DatabaseManager:
         try:
             with self.session_scope() as session:
                 # Optimized query with ordering for consistent results
-                results = session.query(AnalysisResult).filter(
-                    AnalysisResult.case_id == case_id
-                ).order_by(AnalysisResult.created_at.desc()).all()
+                results = (
+                    session.query(AnalysisResult)
+                    .filter(AnalysisResult.case_id == case_id)
+                    .order_by(AnalysisResult.created_at.desc())
+                    .all()
+                )
 
                 return [
                     {
@@ -449,7 +454,7 @@ class DatabaseManager:
                         'pitch_volatility': r.pitch_volatility,
                         'silence_ratio': r.silence_ratio,
                         'intensity_mean': r.intensity_mean,
-                        'created_at': r.created_at.isoformat() if r.created_at else None
+                        'created_at': r.created_at.isoformat() if r.created_at else None,
                     }
                     for r in results
                 ]
@@ -470,23 +475,19 @@ class DatabaseManager:
         """
         try:
             with self.session_scope() as session:
-                message_count = session.query(Message).filter(
-                    Message.case_id == case_id
-                ).count()
+                message_count = session.query(Message).filter(Message.case_id == case_id).count()
 
-                analysis_count = session.query(AnalysisResult).filter(
-                    AnalysisResult.case_id == case_id
-                ).count()
+                analysis_count = session.query(AnalysisResult).filter(AnalysisResult.case_id == case_id).count()
 
-                avg_stress = session.query(func.avg(AnalysisResult.stress_level)).filter(
-                    AnalysisResult.case_id == case_id
-                ).scalar()
+                avg_stress = (
+                    session.query(func.avg(AnalysisResult.stress_level)).filter(AnalysisResult.case_id == case_id).scalar()
+                )
 
             return {
                 'case_id': case_id,
                 'total_messages': message_count,
                 'total_analyses': analysis_count,
-                'average_stress_level': float(avg_stress) if avg_stress else 0.0
+                'average_stress_level': float(avg_stress) if avg_stress else 0.0,
             }
 
         except Exception as e:
@@ -497,28 +498,30 @@ class DatabaseManager:
     def get_high_stress_results(self, case_id: str, threshold: float = 50.0) -> List[dict]:
         """
         Get analysis results with high stress levels (optimized query)
-        
+
         Args:
             case_id: Case identifier
             threshold: Stress level threshold
-            
+
         Returns:
             List of high-stress analysis results
         """
         try:
             with self.session_scope() as session:
                 # Use index on stress_level for fast filtering
-                results = session.query(AnalysisResult).filter(
-                    AnalysisResult.case_id == case_id,
-                    AnalysisResult.stress_level >= threshold
-                ).order_by(AnalysisResult.stress_level.desc()).all()
-                
+                results = (
+                    session.query(AnalysisResult)
+                    .filter(AnalysisResult.case_id == case_id, AnalysisResult.stress_level >= threshold)
+                    .order_by(AnalysisResult.stress_level.desc())
+                    .all()
+                )
+
                 return [
                     {
                         'filename': r.filename,
                         'stress_level': r.stress_level,
                         'duration': r.duration,
-                        'created_at': r.created_at.isoformat() if r.created_at else None
+                        'created_at': r.created_at.isoformat() if r.created_at else None,
                     }
                     for r in results
                 ]
@@ -530,28 +533,32 @@ class DatabaseManager:
     def get_conversation_timeline(self, case_id: str, limit: int = 100) -> List[dict]:
         """
         Get conversation timeline with optimized query using composite index
-        
+
         Args:
             case_id: Case identifier
             limit: Maximum number of messages to return
-            
+
         Returns:
             List of messages in chronological order
         """
         try:
             with self.session_scope() as session:
                 # Use composite index idx_case_timestamp for fast timeline queries
-                messages = session.query(Message).filter(
-                    Message.case_id == case_id
-                ).order_by(Message.timestamp.asc()).limit(limit).all()
-                
+                messages = (
+                    session.query(Message)
+                    .filter(Message.case_id == case_id)
+                    .order_by(Message.timestamp.asc())
+                    .limit(limit)
+                    .all()
+                )
+
                 return [
                     {
                         'id': m.id,
                         'timestamp': m.timestamp.isoformat() if m.timestamp else None,
                         'sender': m.sender,
                         'text': m.text,
-                        'message_type': m.message_type
+                        'message_type': m.message_type,
                     }
                     for m in messages
                 ]
@@ -562,7 +569,7 @@ class DatabaseManager:
     def get_query_performance_stats(self) -> Dict[str, Any]:
         """
         Get database query performance statistics
-        
+
         Returns:
             Dictionary with performance metrics
         """
@@ -571,10 +578,10 @@ class DatabaseManager:
                 # Get table row counts for performance monitoring
                 analysis_count = session.query(func.count(AnalysisResult.id)).scalar()
                 message_count = session.query(func.count(Message.id)).scalar()
-                
+
                 # Get cache statistics
                 cache_stats = get_cache_stats()
-                
+
                 return {
                     'database_url': self.database_url,
                     'analysis_results_count': analysis_count,
@@ -582,7 +589,7 @@ class DatabaseManager:
                     'cache_stats': cache_stats,
                     'pool_size': DB_POOL_SIZE,
                     'max_overflow': DB_MAX_OVERFLOW,
-                    'pool_timeout': DB_POOL_TIMEOUT
+                    'pool_timeout': DB_POOL_TIMEOUT,
                 }
         except Exception as e:
             logger.error(f"Error retrieving performance stats: {str(e)}")

@@ -4,10 +4,10 @@ Plugin system, custom analyzers, and extensibility framework
 """
 
 import logging
-from typing import Dict, List, Any, Callable, Optional, Type
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Type
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +56,7 @@ class AnalysisPlugin(ABC):
 
     def get_info(self) -> Dict[str, Any]:
         """Get plugin information"""
-        return {
-            'name': self.name,
-            'version': self.version,
-            'enabled': self.enabled,
-            'metadata': self.metadata
-        }
+        return {'name': self.name, 'version': self.version, 'enabled': self.enabled, 'metadata': self.metadata}
 
 
 class CustomAnalyzer(AnalysisPlugin):
@@ -82,18 +77,10 @@ class CustomAnalyzer(AnalysisPlugin):
         """Execute custom analysis"""
         try:
             result = self.analyzer_func(data)
-            return {
-                'success': True,
-                'result': result,
-                'timestamp': datetime.now().isoformat()
-            }
+            return {'success': True, 'result': result, 'timestamp': datetime.now().isoformat()}
         except Exception as e:
             logger.error(f"Custom analyzer {self.name} failed: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e),
-                'timestamp': datetime.now().isoformat()
-            }
+            return {'success': False, 'error': str(e), 'timestamp': datetime.now().isoformat()}
 
     def validate(self, data: Any) -> bool:
         """Validate input"""
@@ -239,11 +226,7 @@ class ReportTemplate:
             content: Section content
             section_type: Type of section
         """
-        self.sections.append({
-            'title': title,
-            'content': content,
-            'type': section_type
-        })
+        self.sections.append({'title': title, 'content': content, 'type': section_type})
 
     def render(self, data: Dict[str, Any]) -> str:
         """
@@ -281,11 +264,8 @@ class ReportTemplate:
     def _render_json(self, data: Dict[str, Any]) -> str:
         """Render as JSON"""
         import json
-        return json.dumps({
-            'name': self.name,
-            'sections': self.sections,
-            'data': data
-        }, indent=2)
+
+        return json.dumps({'name': self.name, 'sections': self.sections, 'data': data}, indent=2)
 
 
 class DataTransformer:
@@ -308,7 +288,7 @@ class DataTransformer:
             'stress_level': f"{forensics.get('stress_level', 0):.1f}/100",
             'pitch_volatility': f"{forensics.get('pitch_volatility', 0):.1f}",
             'silence_ratio': f"{forensics.get('silence_ratio', 0):.1%}",
-            'status': 'High Stress' if forensics.get('stress_level', 0) > 50 else 'Normal'
+            'status': 'High Stress' if forensics.get('stress_level', 0) > 50 else 'Normal',
         }
 
     @staticmethod
@@ -326,7 +306,7 @@ class DataTransformer:
             'traits': ', '.join(profile.get('personality_traits', [])),
             'emotional_regulation': profile.get('emotional_regulation', 'Unknown'),
             'risk_level': profile.get('risk_assessment', 'Unknown'),
-            'communication': ', '.join(profile.get('communication_patterns', []))
+            'communication': ', '.join(profile.get('communication_patterns', [])),
         }
 
     @staticmethod
@@ -389,11 +369,11 @@ class ExportManager:
         try:
             exporter = self.exporters[format_name]
             content = exporter(data)
-            
+
             output_path.parent.mkdir(parents=True, exist_ok=True)
             with open(output_path, 'w') as f:
                 f.write(content)
-            
+
             logger.info(f"Exported to {output_path}")
             return True
 
@@ -436,6 +416,7 @@ class ExtensionLoader:
                 return False
 
             import importlib.util
+
             spec = importlib.util.spec_from_file_location(extension_name, extension_file)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
@@ -467,13 +448,13 @@ class ExtensionLoader:
 
 if __name__ == "__main__":
     manager = PluginManager()
-    
+
     def custom_analysis(data):
         return {"custom_result": len(str(data))}
-    
+
     plugin = CustomAnalyzer("test_analyzer", custom_analysis)
     manager.register_plugin(plugin)
-    
+
     result = manager.execute_plugin("test_analyzer", "test data")
     print(f"Result: {result}")
     print(f"Plugins: {manager.list_plugins()}")
