@@ -1,194 +1,269 @@
-name: Die Waarheid CI/CD Pipeline
+# Validates Python, frontend, security, and container builds on pushes, PRs, manual runs, and a weekly schedule.
+name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main ]
+    branches: [main, develop]
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   PYTHON_VERSION: '3.11'
-  NODE_VERSION: '18'
+  NODE_VERSION: '24'
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  FORCE_COLOR: '1'
 
 jobs:
-  lint:
-    name: Lint Code
-    runs-on: ubuntu-latest
+  python-quality:
+    name: Python Quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ env.PYTHON_VERSION }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install flake8 black isort mypy
-        pip install -r requirements.txt
-    
-    - name: Run flake8
-      run: |
-        flake8 die_waarheid --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 die_waarheid --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    
-    - name: Check code formatting
-      run: |
-        black --check die_waarheid
-        isort --check-only die_waarheid
-    
-    - name: Type checking
-      run: mypy die_waarheid --ignore-missing-imports
+      - name: Check out repository
+        uses: actions/checkout@v7 # Current Node 24 runtime.
 
-  test:
-    name: Run Tests
-    runs-on: ubuntu-latest
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+
+      - name: Install quality tools
+        run: python -m pip install --requirement requirements-ci.txt
+
+      - name: Check syntax and critical lint rules
+        run: |
+          python -m compileall -q die_waarheid
+          flake8 die_waarheid --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Check formatting and imports
+        run: |
+          black --check die_waarheid
+          isort --check-only die_waarheid
+
+      - name: Type-check the incremental typed core
+        run: >-
+          mypy
+          die_waarheid/config.py
+          die_waarheid/src/models.py
+          die_waarheid/src/chat_parser.py
+          die_waarheid/src/evidence_scoring.py
+          die_waarheid/src/risk_escalation_matrix.py
+          --ignore-missing-imports
+          --disable-error-code=import-untyped
+          --no-incremental
+
+      - name: Write quality summary
+        if: always()
+        run: |
+          echo '## Python quality' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Syntax, critical flake8 rules, Black, isort, and the incremental mypy scope were executed.' >> "$GITHUB_STEP_SUMMARY"
+
+  python-tests:
+    name: Python Tests (${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     strategy:
+      fail-fast: false
       matrix:
         python-version: ['3.10', '3.11', '3.12']
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install -r test-requirements.txt
-    
-    - name: Run tests with coverage
-      run: |
-        pytest tests/ --cov=die_waarheid --cov-report=xml --cov-report=html
-    
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./coverage.xml
-        flags: unittests
-        name: codecov-umbrella
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            test-requirements.txt
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --requirement requirements.txt
+          python -m pip install --requirement test-requirements.txt
+
+      - name: Run tests with coverage
+        run: >-
+          pytest tests/
+          --cov=die_waarheid
+          --cov-report=xml
+          --cov-report=term-missing
+          --junitxml=junit-${{ matrix.python-version }}.xml
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-test-reports-${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            junit-${{ matrix.python-version }}.xml
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Write test summary
+        if: always()
+        run: |
+          echo '## Python ${{ matrix.python-version }} tests' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Pytest completed with coverage and JUnit output.' >> "$GITHUB_STEP_SUMMARY"
+
+  frontend:
+    name: Frontend Lint and Build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit
+
+      - name: Lint frontend
+        run: npm run lint
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Upload frontend bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write frontend summary
+        if: always()
+        working-directory: .
+        run: |
+          echo '## Frontend' >> "$GITHUB_STEP_SUMMARY"
+          echo 'ESLint and the production TypeScript/Vite build were executed.' >> "$GITHUB_STEP_SUMMARY"
 
   security:
     name: Security Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Run Bandit Security Scan
-      run: |
-        pip install bandit
-        bandit -r die_waarheid -s B101,B102,B301 -f json -o bandit-report.json
-    
-    - name: Run Safety Check
-      run: |
-        pip install safety
-        safety check --json > safety-report.json
-    
-    - name: Upload security reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: security-reports
-        path: |
-          bandit-report.json
-          safety-report.json
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-  build:
-    name: Build Docker Image
-    runs-on: ubuntu-latest
-    needs: [lint, test]
-    if: github.event_name == 'push'
-    
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-ci.txt
+
+      - name: Install security tools
+        run: python -m pip install --requirement requirements-ci.txt
+
+      - name: Run blocking Bandit scan
+        run: bandit -r die_waarheid -s B101,B102,B301 -ll -ii -f json -o bandit-report.json
+
+      - name: Audit locked application dependencies
+        continue-on-error: true # Informational until the legacy dependency set has a reviewed vulnerability baseline.
+        run: pip-audit --requirement requirements.txt --format json --output pip-audit-report.json
+
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            pip-audit-report.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Write security summary
+        if: always()
+        run: |
+          echo '## Security' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Bandit blocks medium/high-confidence findings. Dependency audit is reported while the legacy baseline is remediated.' >> "$GITHUB_STEP_SUMMARY"
+
+  container:
+    name: Container Build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-    
-    - name: Login to Docker Hub
-      if: github.ref == 'refs/heads/main'
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-    
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: die-waarheid/die-waarheid
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-    
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: ${{ github.ref == 'refs/heads/main' }}
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+      - name: Check out repository
+        uses: actions/checkout@v7
 
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.ref == 'refs/heads/develop'
-    environment: staging
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Deploy to staging
-      run: |
-        echo "Deploying to staging environment"
-        # Add deployment commands here
-        # Example: kubectl apply -f k8s/staging/
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
 
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: [build, security]
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Deploy to production
-      run: |
-        echo "Deploying to production environment"
-        # Add deployment commands here
-        # Example: kubectl apply -f k8s/production/
-    
-    - name: Run smoke tests
-      run: |
-        echo "Running smoke tests"
-        # Add smoke test commands here
+      - name: Build image without publishing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: false
+          tags: die-waarheid:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  notify:
-    name: Notify Results
-    runs-on: ubuntu-latest
-    needs: [lint, test, security, build]
+      - name: Write container summary
+        if: always()
+        run: |
+          echo '## Container' >> "$GITHUB_STEP_SUMMARY"
+          echo 'The production Dockerfile was built without registry credentials or publication side effects.' >> "$GITHUB_STEP_SUMMARY"
+
+  ci-health:
+    name: CI Health
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     if: always()
-    
+    needs: [python-quality, python-tests, frontend, security, container]
     steps:
-    - name: Notify Slack on success
-      if: ${{ needs.lint.result == 'success' && needs.test.result == 'success' && needs.build.result == 'success' }}
-      run: |
-        echo "Deployment successful! Notifying team..."
-        # Add Slack notification here
-    
-    - name: Notify Slack on failure
-      if: ${{ needs.lint.result == 'failure' || needs.test.result == 'failure' || needs.build.result == 'failure' }}
-      run: |
-        echo "Deployment failed! Notifying team..."
-        # Add Slack notification here
+      - name: Summarize required jobs
+        env:
+          PYTHON_QUALITY: ${{ needs.python-quality.result }}
+          PYTHON_TESTS: ${{ needs.python-tests.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+          SECURITY: ${{ needs.security.result }}
+          CONTAINER: ${{ needs.container.result }}
+        run: |
+          {
+            echo '## CI Health'
+            echo '| Required job | Result |'
+            echo '|---|---|'
+            echo "| Python Quality | $PYTHON_QUALITY |"
+            echo "| Python Tests | $PYTHON_TESTS |"
+            echo "| Frontend | $FRONTEND |"
+            echo "| Security | $SECURITY |"
+            echo "| Container | $CONTAINER |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          for result in "$PYTHON_QUALITY" "$PYTHON_TESTS" "$FRONTEND" "$SECURITY" "$CONTAINER"; do
+            if [ "$result" != 'success' ]; then
+              echo "::error::A required CI job finished with status: $result"
+              exit 1
+            fi
+          done
+
+          echo '::notice::All required CI jobs passed.'

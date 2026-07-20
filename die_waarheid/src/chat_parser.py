@@ -106,7 +106,7 @@ class WhatsAppParser:
                         if parsed.get('sender'):
                             self.participants.add(parsed['sender'])
 
-                    elif current_message and not parsed.get('is_new_message'):
+                    elif current_message and parsed is not None and not parsed.get('is_new_message'):
                         current_message['text'] += '\n' + line
 
             if current_message:
