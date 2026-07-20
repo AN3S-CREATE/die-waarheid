@@ -3,12 +3,12 @@ Performance optimization utilities for Die Waarheid
 Profiling, benchmarking, and performance monitoring
 """
 
-import time
 import functools
 import logging
-from typing import Callable, Any, Dict, Optional
-from datetime import datetime
+import time
 from contextlib import contextmanager
+from datetime import datetime
+from typing import Any, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +37,11 @@ class PerformanceTimer:
         """Stop timing and log"""
         self.end_time = time.time()
         self.duration = self.end_time - self.start_time
-        
+
         if exc_type is None:
             logger.debug(
                 f"{self.name} completed",
-                extra={
-                    'operation': self.name,
-                    'duration_seconds': self.duration,
-                    'event_type': 'performance'
-                }
+                extra={'operation': self.name, 'duration_seconds': self.duration, 'event_type': 'performance'},
             )
         else:
             logger.error(
@@ -54,8 +50,8 @@ class PerformanceTimer:
                     'operation': self.name,
                     'duration_seconds': self.duration,
                     'error': str(exc_val),
-                    'event_type': 'performance_error'
-                }
+                    'event_type': 'performance_error',
+                },
             )
 
     def get_duration(self) -> float:
@@ -73,11 +69,13 @@ def timeit(func: Callable) -> Callable:
     Returns:
         Wrapped function with timing
     """
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         with PerformanceTimer(f"{func.__name__}") as timer:
             result = func(*args, **kwargs)
         return result
+
     return wrapper
 
 
@@ -94,13 +92,14 @@ class MemoryProfiler:
         """
         try:
             import psutil
+
             process = psutil.Process()
             memory_info = process.memory_info()
-            
+
             return {
-                'rss_mb': memory_info.rss / (1024 ** 2),
-                'vms_mb': memory_info.vms / (1024 ** 2),
-                'percent': process.memory_percent()
+                'rss_mb': memory_info.rss / (1024**2),
+                'vms_mb': memory_info.vms / (1024**2),
+                'percent': process.memory_percent(),
             }
         except Exception as e:
             logger.error(f"Error getting memory usage: {str(e)}")
@@ -117,12 +116,13 @@ class MemoryProfiler:
         Returns:
             Wrapped function with memory profiling
         """
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             mem_before = MemoryProfiler.get_memory_usage()
             result = func(*args, **kwargs)
             mem_after = MemoryProfiler.get_memory_usage()
-            
+
             if mem_before and mem_after:
                 delta = mem_after['rss_mb'] - mem_before['rss_mb']
                 logger.debug(
@@ -132,11 +132,12 @@ class MemoryProfiler:
                         'memory_delta_mb': delta,
                         'memory_before_mb': mem_before['rss_mb'],
                         'memory_after_mb': mem_after['rss_mb'],
-                        'event_type': 'memory_profile'
-                    }
+                        'event_type': 'memory_profile',
+                    },
                 )
-            
+
             return result
+
         return wrapper
 
 
@@ -159,12 +160,8 @@ class PerformanceMonitor:
         """
         if metric_name not in self.metrics:
             self.metrics[metric_name] = []
-        
-        self.metrics[metric_name].append({
-            'value': value,
-            'unit': unit,
-            'timestamp': datetime.now().isoformat()
-        })
+
+        self.metrics[metric_name].append({'value': value, 'unit': unit, 'timestamp': datetime.now().isoformat()})
 
     def get_metric_stats(self, metric_name: str) -> Dict[str, float]:
         """
@@ -180,21 +177,18 @@ class PerformanceMonitor:
             return {}
 
         values = [m['value'] for m in self.metrics[metric_name]]
-        
+
         return {
             'min': min(values),
             'max': max(values),
             'avg': sum(values) / len(values),
             'count': len(values),
-            'total': sum(values)
+            'total': sum(values),
         }
 
     def get_all_stats(self) -> Dict[str, Dict[str, float]]:
         """Get statistics for all metrics"""
-        return {
-            metric: self.get_metric_stats(metric)
-            for metric in self.metrics
-        }
+        return {metric: self.get_metric_stats(metric) for metric in self.metrics}
 
     def reset(self):
         """Reset all metrics"""
@@ -217,12 +211,7 @@ class BatchProcessor:
         self.max_workers = max_workers
         self.monitor = PerformanceMonitor()
 
-    def process_batches(
-        self,
-        items: list,
-        process_func: Callable,
-        progress_callback: Optional[Callable] = None
-    ) -> list:
+    def process_batches(self, items: list, process_func: Callable, progress_callback: Optional[Callable] = None) -> list:
         """
         Process items in batches
 
@@ -238,36 +227,28 @@ class BatchProcessor:
         total = len(items)
 
         for batch_idx in range(0, total, self.batch_size):
-            batch = items[batch_idx:batch_idx + self.batch_size]
-            
+            batch = items[batch_idx : batch_idx + self.batch_size]
+
             with PerformanceTimer(f"Batch {batch_idx // self.batch_size}") as timer:
                 batch_results = [process_func(item) for item in batch]
                 results.extend(batch_results)
-            
-            self.monitor.record_metric(
-                "batch_processing_time",
-                timer.duration,
-                "seconds"
-            )
+
+            self.monitor.record_metric("batch_processing_time", timer.duration, "seconds")
 
             if progress_callback:
-                progress_callback(
-                    min(batch_idx + self.batch_size, total),
-                    total,
-                    f"Batch {batch_idx // self.batch_size}"
-                )
+                progress_callback(min(batch_idx + self.batch_size, total), total, f"Batch {batch_idx // self.batch_size}")
 
         return results
 
     def get_performance_report(self) -> Dict:
         """Get performance report"""
         stats = self.monitor.get_all_stats()
-        
+
         return {
             'batch_size': self.batch_size,
             'max_workers': self.max_workers,
             'metrics': stats,
-            'uptime_seconds': (datetime.now() - self.monitor.start_time).total_seconds()
+            'uptime_seconds': (datetime.now() - self.monitor.start_time).total_seconds(),
         }
 
 
@@ -324,10 +305,7 @@ class QueryOptimizer:
     """Database query optimization utilities"""
 
     @staticmethod
-    def estimate_query_time(
-        row_count: int,
-        complexity: str = "simple"
-    ) -> float:
+    def estimate_query_time(row_count: int, complexity: str = "simple") -> float:
         """
         Estimate query execution time
 
@@ -338,12 +316,8 @@ class QueryOptimizer:
         Returns:
             Estimated time in seconds
         """
-        complexity_factors = {
-            'simple': 0.001,
-            'moderate': 0.01,
-            'complex': 0.1
-        }
-        
+        complexity_factors = {'simple': 0.001, 'moderate': 0.01, 'complex': 0.1}
+
         factor = complexity_factors.get(complexity, 0.01)
         return row_count * factor / 1000
 
@@ -381,11 +355,11 @@ def performance_context(operation_name: str):
 
 if __name__ == "__main__":
     monitor = PerformanceMonitor()
-    
+
     # Example: Record metrics
     for i in range(10):
         monitor.record_metric("response_time", 0.5 + i * 0.01, "seconds")
-    
+
     # Get statistics
     stats = monitor.get_all_stats()
     print("Performance Statistics:")

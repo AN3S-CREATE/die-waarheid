@@ -12,16 +12,17 @@ SCORING FACTORS:
 """
 
 import logging
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class EvidenceReliability(Enum):
     """Evidence reliability rating"""
+
     HIGHLY_RELIABLE = "highly_reliable"
     RELIABLE = "reliable"
     MODERATE = "moderate"
@@ -31,6 +32,7 @@ class EvidenceReliability(Enum):
 
 class EvidenceImportance(Enum):
     """Evidence importance rating"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -40,29 +42,30 @@ class EvidenceImportance(Enum):
 @dataclass
 class EvidenceScore:
     """Score for single evidence item"""
+
     evidence_id: str
-    
+
     # Component scores (0-100)
     authenticity_score: float
     timeline_consistency_score: float
     psychological_indicator_score: float
     cross_reference_score: float
     source_reliability_score: float
-    
+
     # Overall scores
     reliability_score: float
     importance_score: float
     overall_strength: float
-    
+
     # Ratings
     reliability_rating: EvidenceReliability
     importance_rating: EvidenceImportance
-    
+
     # Details
     strengths: List[str]
     weaknesses: List[str]
     recommendations: List[str]
-    
+
     def to_dict(self) -> Dict:
         return {
             'evidence_id': self.evidence_id,
@@ -78,7 +81,7 @@ class EvidenceScore:
             'importance_rating': self.importance_rating.value,
             'strengths': self.strengths,
             'weaknesses': self.weaknesses,
-            'recommendations': self.recommendations
+            'recommendations': self.recommendations,
         }
 
 
@@ -103,7 +106,7 @@ class EvidenceScoringSystem:
         cross_references: Optional[int] = None,
         contradictions: Optional[int] = None,
         forensic_flags: Optional[List[str]] = None,
-        expert_findings: Optional[int] = None
+        expert_findings: Optional[int] = None,
     ) -> EvidenceScore:
         """
         Score evidence based on multiple factors
@@ -139,7 +142,7 @@ class EvidenceScoringSystem:
         if evidence_type == "voice_note" or evidence_type == "transcription":
             if afrikaans_confidence is not None:
                 authenticity_score = afrikaans_confidence * 100
-                
+
                 if afrikaans_confidence > 0.9:
                     strengths.append("Excellent Afrikaans authenticity verification")
                 elif afrikaans_confidence > 0.7:
@@ -158,7 +161,7 @@ class EvidenceScoringSystem:
         # 2. TIMELINE CONSISTENCY SCORE
         if timeline_consistency is not None:
             timeline_consistency_score = timeline_consistency * 100
-            
+
             if timeline_consistency > 0.9:
                 strengths.append("Excellent timeline consistency")
             elif timeline_consistency > 0.7:
@@ -173,7 +176,7 @@ class EvidenceScoringSystem:
         # 3. PSYCHOLOGICAL INDICATOR SCORE
         if stress_level is not None and baseline_stress is not None and baseline_stress > 0:
             stress_ratio = stress_level / baseline_stress
-            
+
             if stress_ratio < 1.2:
                 psychological_indicator_score = 80.0
                 strengths.append("Consistent stress levels - credible")
@@ -227,16 +230,16 @@ class EvidenceScoringSystem:
 
         # Calculate overall scores
         reliability_score = (
-            authenticity_score * 0.3 +
-            timeline_consistency_score * 0.25 +
-            psychological_indicator_score * 0.2 +
-            cross_reference_score * 0.15 +
-            source_reliability_score * 0.1
+            authenticity_score * 0.3
+            + timeline_consistency_score * 0.25
+            + psychological_indicator_score * 0.2
+            + cross_reference_score * 0.15
+            + source_reliability_score * 0.1
         )
 
         # Importance score based on expert findings and contradictions
         importance_score = 50.0
-        
+
         if expert_findings is not None:
             if expert_findings >= 5:
                 importance_score = 95.0
@@ -278,9 +281,7 @@ class EvidenceScoringSystem:
         overall_strength = (reliability_score * 0.6) + (importance_score * 0.4)
 
         # Generate recommendations
-        recommendations = self._generate_recommendations(
-            reliability_rating, importance_rating, strengths, weaknesses
-        )
+        recommendations = self._generate_recommendations(reliability_rating, importance_rating, strengths, weaknesses)
 
         score = EvidenceScore(
             evidence_id=evidence_id,
@@ -296,18 +297,14 @@ class EvidenceScoringSystem:
             importance_rating=importance_rating,
             strengths=strengths,
             weaknesses=weaknesses,
-            recommendations=recommendations
+            recommendations=recommendations,
         )
 
         self.scores[evidence_id] = score
         return score
 
     def _generate_recommendations(
-        self,
-        reliability: EvidenceReliability,
-        importance: EvidenceImportance,
-        strengths: List[str],
-        weaknesses: List[str]
+        self, reliability: EvidenceReliability, importance: EvidenceImportance, strengths: List[str], weaknesses: List[str]
     ) -> List[str]:
         """Generate recommendations based on scores"""
         recommendations = []
@@ -346,26 +343,16 @@ class EvidenceScoringSystem:
 
     def get_top_evidence(self, limit: int = 10) -> List[EvidenceScore]:
         """Get top evidence by overall strength"""
-        sorted_scores = sorted(
-            self.scores.values(),
-            key=lambda x: x.overall_strength,
-            reverse=True
-        )
+        sorted_scores = sorted(self.scores.values(), key=lambda x: x.overall_strength, reverse=True)
         return sorted_scores[:limit]
 
     def get_critical_evidence(self) -> List[EvidenceScore]:
         """Get all critical importance evidence"""
-        return [
-            s for s in self.scores.values()
-            if s.importance_rating == EvidenceImportance.CRITICAL
-        ]
+        return [s for s in self.scores.values() if s.importance_rating == EvidenceImportance.CRITICAL]
 
     def get_unreliable_evidence(self) -> List[EvidenceScore]:
         """Get unreliable evidence"""
-        return [
-            s for s in self.scores.values()
-            if s.reliability_rating == EvidenceReliability.UNRELIABLE
-        ]
+        return [s for s in self.scores.values() if s.reliability_rating == EvidenceReliability.UNRELIABLE]
 
     def get_scoring_summary(self) -> Dict[str, Any]:
         """Get summary of all evidence scores"""
@@ -373,12 +360,16 @@ class EvidenceScoringSystem:
             return {'total_evidence': 0}
 
         scores_list = list(self.scores.values())
-        
+
         critical = len([s for s in scores_list if s.importance_rating == EvidenceImportance.CRITICAL])
         high = len([s for s in scores_list if s.importance_rating == EvidenceImportance.HIGH])
-        reliable = len([s for s in scores_list if s.reliability_rating in [
-            EvidenceReliability.HIGHLY_RELIABLE, EvidenceReliability.RELIABLE
-        ]])
+        reliable = len(
+            [
+                s
+                for s in scores_list
+                if s.reliability_rating in [EvidenceReliability.HIGHLY_RELIABLE, EvidenceReliability.RELIABLE]
+            ]
+        )
         unreliable = len([s for s in scores_list if s.reliability_rating == EvidenceReliability.UNRELIABLE])
 
         avg_strength = sum(s.overall_strength for s in scores_list) / len(scores_list) if scores_list else 0.0
@@ -392,7 +383,7 @@ class EvidenceScoringSystem:
             'unreliable_evidence': unreliable,
             'average_strength': avg_strength,
             'average_reliability': avg_reliability,
-            'top_evidence': [s.evidence_id for s in self.get_top_evidence(5)]
+            'top_evidence': [s.evidence_id for s in self.get_top_evidence(5)],
         }
 
 

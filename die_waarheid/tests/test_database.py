@@ -3,12 +3,12 @@ Unit tests for database backend
 Tests database operations, queries, and persistence
 """
 
-import pytest
 import tempfile
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
-from src.database import DatabaseManager, AnalysisResult, Message, ConversationAnalysis
+import pytest
+from src.database import AnalysisResult, ConversationAnalysis, DatabaseManager, Message
 
 
 class TestDatabaseManager:
@@ -46,7 +46,7 @@ class TestDatabaseManager:
             'spectral_centroid': 2500.0,
             'stress_level': 52.1,
             'stress_threshold_exceeded': True,
-            'high_cognitive_load': False
+            'high_cognitive_load': False,
         }
 
         success = db.store_analysis_result('CASE_001', result)
@@ -66,19 +66,14 @@ class TestDatabaseManager:
                 'spectral_centroid': 2500.0,
                 'stress_level': 52.1 + i,
                 'stress_threshold_exceeded': True,
-                'high_cognitive_load': False
+                'high_cognitive_load': False,
             }
             success = db.store_analysis_result('CASE_001', result)
             assert success is True
 
     def test_store_message(self, db):
         """Test storing message"""
-        message = {
-            'timestamp': datetime.now(),
-            'sender': 'Alice',
-            'text': 'Hello, how are you?',
-            'message_type': 'text'
-        }
+        message = {'timestamp': datetime.now(), 'sender': 'Alice', 'text': 'Hello, how are you?', 'message_type': 'text'}
 
         success = db.store_message('CASE_001', message)
         assert success is True
@@ -92,7 +87,7 @@ class TestDatabaseManager:
             'communication_style': 'direct',
             'conflict_level': 0.3,
             'manipulation_indicators': ['gaslighting'],
-            'summary': 'Balanced conversation'
+            'summary': 'Balanced conversation',
         }
 
         success = db.store_conversation_analysis('CASE_001', analysis)
@@ -111,7 +106,7 @@ class TestDatabaseManager:
             'spectral_centroid': 2500.0,
             'stress_level': 52.1,
             'stress_threshold_exceeded': True,
-            'high_cognitive_load': False
+            'high_cognitive_load': False,
         }
 
         db.store_analysis_result('CASE_001', result)
@@ -134,17 +129,12 @@ class TestDatabaseManager:
             'spectral_centroid': 2500.0,
             'stress_level': 52.1,
             'stress_threshold_exceeded': True,
-            'high_cognitive_load': False
+            'high_cognitive_load': False,
         }
 
         db.store_analysis_result('CASE_001', result)
 
-        message = {
-            'timestamp': datetime.now(),
-            'sender': 'Alice',
-            'text': 'Hello',
-            'message_type': 'text'
-        }
+        message = {'timestamp': datetime.now(), 'sender': 'Alice', 'text': 'Hello', 'message_type': 'text'}
         db.store_message('CASE_001', message)
 
         stats = db.get_case_statistics('CASE_001')
@@ -176,7 +166,7 @@ class TestDatabaseManager:
             'spectral_centroid': 2500.0,
             'stress_level': 52.1,
             'stress_threshold_exceeded': True,
-            'high_cognitive_load': False
+            'high_cognitive_load': False,
         }
 
         result2 = {
@@ -190,7 +180,7 @@ class TestDatabaseManager:
             'spectral_centroid': 3000.0,
             'stress_level': 65.0,
             'stress_threshold_exceeded': True,
-            'high_cognitive_load': True
+            'high_cognitive_load': True,
         }
 
         db.store_analysis_result('CASE_001', result1)
@@ -204,10 +194,7 @@ class TestDatabaseManager:
 
     def test_database_error_handling(self, db):
         """Test error handling in database operations"""
-        invalid_result = {
-            'filename': None,  # Invalid
-            'duration': 10.5
-        }
+        invalid_result = {'filename': None, 'duration': 10.5}  # Invalid
 
         success = db.store_analysis_result('CASE_001', invalid_result)
         assert success is False

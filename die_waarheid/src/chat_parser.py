@@ -3,15 +3,15 @@ WhatsApp Chat Parser for Die Waarheid
 Parses WhatsApp exports and extracts structured message data
 """
 
+import asyncio
 import logging
 import re
-import asyncio
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
 
-import pandas as pd
 import aiofiles
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -90,8 +90,8 @@ class WhatsAppParser:
             # Process lines in batches to avoid blocking
             batch_size = 1000
             for i in range(0, len(lines), batch_size):
-                batch = lines[i:i + batch_size]
-                
+                batch = lines[i : i + batch_size]
+
                 for line in batch:
                     if not line.strip():
                         continue
@@ -106,7 +106,7 @@ class WhatsAppParser:
                         if parsed.get('sender'):
                             self.participants.add(parsed['sender'])
 
-                    elif current_message and not parsed.get('is_new_message'):
+                    elif current_message and parsed is not None and not parsed.get('is_new_message'):
                         current_message['text'] += '\n' + line
 
             if current_message:
@@ -160,7 +160,7 @@ class WhatsAppParser:
                         'sender': sender,
                         'text': text,
                         'is_system': is_system,
-                        'message_type': self._detect_message_type(text)
+                        'message_type': self._detect_message_type(text),
                     }
 
                 except Exception as e:
@@ -181,12 +181,12 @@ class WhatsAppParser:
         """
         # Remove brackets if present
         clean_timestamp = timestamp_str.strip('[]')
-        
+
         formats = [
             '%d/%m/%Y, %H:%M:%S',  # DD/MM/YYYY, HH:MM:SS (most common)
-            '%d/%m/%Y, %H:%M',     # DD/MM/YYYY, HH:MM
-            '%d/%m/%Y %H:%M:%S',   # DD/MM/YYYY HH:MM:SS
-            '%d/%m/%Y %H:%M',      # DD/MM/YYYY HH:MM
+            '%d/%m/%Y, %H:%M',  # DD/MM/YYYY, HH:MM
+            '%d/%m/%Y %H:%M:%S',  # DD/MM/YYYY HH:MM:SS
+            '%d/%m/%Y %H:%M',  # DD/MM/YYYY HH:MM
             '%m/%d/%Y, %I:%M:%S %p',
             '%m/%d/%Y, %I:%M %p',
             '%m/%d/%Y %I:%M:%S %p',
@@ -297,11 +297,7 @@ class WhatsAppParser:
         """
         return [m for m in self.messages if m.get('sender') == sender]
 
-    def get_messages_in_range(
-        self,
-        start_date: datetime,
-        end_date: datetime
-    ) -> List[Dict]:
+    def get_messages_in_range(self, start_date: datetime, end_date: datetime) -> List[Dict]:
         """
         Get messages within a date range
 
@@ -312,10 +308,7 @@ class WhatsAppParser:
         Returns:
             List of messages in range
         """
-        return [
-            m for m in self.messages
-            if start_date <= m.get('timestamp', datetime.now()) <= end_date
-        ]
+        return [m for m in self.messages if start_date <= m.get('timestamp', datetime.now()) <= end_date]
 
     def get_metadata(self) -> Dict:
         """
@@ -434,7 +427,7 @@ class WhatsAppParser:
     def get_message_count(self) -> int:
         """
         Get total number of messages
-        
+
         Returns:
             Number of messages
         """
@@ -443,10 +436,10 @@ class WhatsAppParser:
     def _parse_message_line(self, line: str) -> Optional[Dict]:
         """
         Alias for _parse_line for backward compatibility
-        
+
         Args:
             line: Line from chat export
-            
+
         Returns:
             Dictionary with message data or None
         """
@@ -455,10 +448,10 @@ class WhatsAppParser:
     def _extract_sender(self, line: str) -> Optional[str]:
         """
         Extract sender name from a message line
-        
+
         Args:
             line: Message line
-            
+
         Returns:
             Sender name or None
         """
@@ -466,7 +459,7 @@ class WhatsAppParser:
             match = re.match(pattern, line)
             if match:
                 # Extract the part after timestamp
-                remaining = line[match.end():]
+                remaining = line[match.end() :]
                 # Look for sender pattern: "Name: message"
                 sender_match = re.match(r'^([^:]+):\s*', remaining)
                 if sender_match:

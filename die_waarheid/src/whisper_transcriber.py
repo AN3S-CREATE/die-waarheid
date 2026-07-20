@@ -9,26 +9,22 @@ import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import whisper
 import torch
-
-from config import (
-    WHISPER_MODEL_SIZE,
-    WHISPER_OPTIONS,
-    TEMP_DIR
-)
+import whisper
+from config import TEMP_DIR, WHISPER_MODEL_SIZE, WHISPER_OPTIONS
 
 logger = logging.getLogger(__name__)
 
 # Import GPU optimization features
 try:
     from src.gpu_manager import (
-        get_optimal_device,
-        is_gpu_available,
-        get_model_optimization_settings,
         cleanup_gpu_memory,
-        gpu_manager
+        get_model_optimization_settings,
+        get_optimal_device,
+        gpu_manager,
+        is_gpu_available,
     )
+
     GPU_OPTIMIZATION_AVAILABLE = True
 except ImportError:
     logger.warning("GPU optimization module not available, using CPU mode")
@@ -42,7 +38,7 @@ class WhisperTranscriber:
     """
 
     AVAILABLE_MODELS = ["tiny", "base", "small", "medium", "large"]
-    
+
     # Class-level model cache to prevent reloading
     _model_cache = {}
     _cache_lock = threading.Lock()
@@ -67,7 +63,7 @@ class WhisperTranscriber:
     def _get_optimal_device() -> str:
         """
         Determine optimal device for model inference
-        
+
         Returns:
             Device string ('cuda', 'mps', or 'cpu')
         """
@@ -85,35 +81,35 @@ class WhisperTranscriber:
     def load_model(self) -> bool:
         """
         Load Whisper model with caching to prevent reloading
-        
+
         Returns:
             True if model loaded successfully, False otherwise
         """
         cache_key = f"{self.model_size}_{self.device}"
-        
+
         # Check if model is already cached
         with self._cache_lock:
             if cache_key in self._model_cache:
                 self.model = self._model_cache[cache_key]
                 logger.info(f"Using cached Whisper {self.model_size} model on {self.device}")
                 return True
-        
+
         try:
             logger.info(f"Loading Whisper {self.model_size} model...")
-            
+
             # Get GPU optimization settings if available
             if GPU_OPTIMIZATION_AVAILABLE:
                 optimization_settings = get_model_optimization_settings(self.model_size)
                 device = optimization_settings.get("device", "cpu")
-                
+
                 logger.info(f"GPU optimization available - using device: {device}")
-                
+
                 # Load model with device specification
                 self.model = whisper.load_model(self.model_size, device=device)
-                
+
                 # Store optimization settings for transcription
                 self._optimization_settings = optimization_settings
-                
+
                 # Log GPU memory usage if on GPU
                 if device != "cpu":
                     memory_info = gpu_manager.get_memory_info()
@@ -126,7 +122,7 @@ class WhisperTranscriber:
                     "fp16": False,
                     "memory_efficient": True,
                     "batch_size": 1,
-                    "num_workers": 1
+                    "num_workers": 1,
                 }
 
             # Write loaded model to class-level cache so future instances reuse it
@@ -138,11 +134,11 @@ class WhisperTranscriber:
 
         except Exception as e:
             logger.error(f"Error loading Whisper model: {str(e)}")
-            
+
             # Cleanup GPU memory on failure
             if GPU_OPTIMIZATION_AVAILABLE:
                 cleanup_gpu_memory()
-            
+
             return False
 
     @classmethod
@@ -156,17 +152,9 @@ class WhisperTranscriber:
     def get_cache_info(cls) -> Dict:
         """Get information about cached models"""
         with cls._cache_lock:
-            return {
-                "cached_models": list(cls._model_cache.keys()),
-                "cache_size": len(cls._model_cache)
-            }
+            return {"cached_models": list(cls._model_cache.keys()), "cache_size": len(cls._model_cache)}
 
-    def transcribe(
-        self,
-        audio_file: Path,
-        language: str = "af",
-        verbose: bool = False
-    ) -> Dict:
+    def transcribe(self, audio_file: Path, language: str = "af", verbose: bool = False) -> Dict:
         """
         Transcribe audio file using Whisper with GPU optimization
 
@@ -180,35 +168,26 @@ class WhisperTranscriber:
         """
         if self.model is None:
             logger.error("Model not loaded")
-            return {
-                'success': False,
-                'message': 'Model not loaded',
-                'filename': str(audio_file)
-            }
+            return {'success': False, 'message': 'Model not loaded', 'filename': str(audio_file)}
 
         # Use GPU memory context if available
         if GPU_OPTIMIZATION_AVAILABLE and hasattr(self, '_optimization_settings'):
             device = self._optimization_settings.get("device", "cpu")
             if device != "cpu":
                 return self._transcribe_with_gpu_context(audio_file, language, verbose)
-        
+
         # Fallback to regular transcription
         return self._transcribe_regular(audio_file, language, verbose)
-    
-    def _transcribe_with_gpu_context(
-        self,
-        audio_file: Path,
-        language: str,
-        verbose: bool
-    ) -> Dict:
+
+    def _transcribe_with_gpu_context(self, audio_file: Path, language: str, verbose: bool) -> Dict:
         """
         Transcribe with GPU memory management context
-        
+
         Args:
             audio_file: Path to audio file
             language: Language code
             verbose: Print progress information
-            
+
         Returns:
             Dictionary with transcription results
         """
@@ -217,34 +196,29 @@ class WhisperTranscriber:
                 # Log initial GPU memory state
                 memory_info = gpu_manager.get_memory_info()
                 logger.debug(f"GPU memory before transcription: {memory_info.get('used_mb', 0)}MB used")
-                
+
                 result = self._transcribe_regular(audio_file, language, verbose)
-                
+
                 # Log final GPU memory state
                 final_memory_info = gpu_manager.get_memory_info()
                 logger.debug(f"GPU memory after transcription: {final_memory_info.get('used_mb', 0)}MB used")
-                
+
                 return result
-                
+
         except Exception as e:
             logger.error(f"Error in GPU transcription context: {str(e)}")
             # Fallback to regular transcription
             return self._transcribe_regular(audio_file, language, verbose)
-    
-    def _transcribe_regular(
-        self,
-        audio_file: Path,
-        language: str,
-        verbose: bool
-    ) -> Dict:
+
+    def _transcribe_regular(self, audio_file: Path, language: str, verbose: bool) -> Dict:
         """
         Regular transcription implementation
-        
+
         Args:
             audio_file: Path to audio file
             language: Language code
             verbose: Print progress information
-            
+
         Returns:
             Dictionary with transcription results
         """
@@ -253,11 +227,7 @@ class WhisperTranscriber:
 
             if not audio_file.exists():
                 logger.error(f"Audio file not found: {audio_file}")
-                return {
-                    'success': False,
-                    'message': f'File not found: {audio_file}',
-                    'filename': str(audio_file)
-                }
+                return {'success': False, 'message': f'File not found: {audio_file}', 'filename': str(audio_file)}
 
             logger.info(f"Transcribing: {audio_file.name}")
 
@@ -265,7 +235,7 @@ class WhisperTranscriber:
             options = WHISPER_OPTIONS.copy()
             options['language'] = language
             options['verbose'] = verbose
-            
+
             # Apply GPU optimization settings if available
             if hasattr(self, '_optimization_settings'):
                 settings = self._optimization_settings
@@ -289,37 +259,29 @@ class WhisperTranscriber:
                 'text': text,
                 'segments': segments,
                 'duration': result.get('duration', 0),
-                'language_detected': result.get('language', language)
+                'language_detected': result.get('language', language),
             }
-            
+
             # Add GPU optimization info if available
             if hasattr(self, '_optimization_settings'):
                 transcription_result['optimization'] = {
                     'device': self._optimization_settings.get('device', 'cpu'),
                     'fp16': self._optimization_settings.get('fp16', False),
-                    'gpu_optimized': self._optimization_settings.get('device', 'cpu') != 'cpu'
+                    'gpu_optimized': self._optimization_settings.get('device', 'cpu') != 'cpu',
                 }
 
             return transcription_result
 
         except Exception as e:
             logger.error(f"Error transcribing {audio_file.name}: {str(e)}")
-            
+
             # Cleanup GPU memory on error
             if GPU_OPTIMIZATION_AVAILABLE:
                 cleanup_gpu_memory()
-            
-            return {
-                'success': False,
-                'message': f'Transcription error: {str(e)}',
-                'filename': audio_file.name
-            }
 
-    def transcribe_with_timestamps(
-        self,
-        audio_file: Path,
-        language: str = "af"
-    ) -> Dict:
+            return {'success': False, 'message': f'Transcription error: {str(e)}', 'filename': audio_file.name}
+
+    def transcribe_with_timestamps(self, audio_file: Path, language: str = "af") -> Dict:
         """
         Transcribe with detailed timestamp information
 
@@ -339,24 +301,22 @@ class WhisperTranscriber:
         timestamped_segments = []
 
         for segment in segments:
-            timestamped_segments.append({
-                'id': segment.get('id'),
-                'start': segment.get('start'),
-                'end': segment.get('end'),
-                'text': segment.get('text'),
-                'confidence': segment.get('confidence', 0.0)
-            })
+            timestamped_segments.append(
+                {
+                    'id': segment.get('id'),
+                    'start': segment.get('start'),
+                    'end': segment.get('end'),
+                    'text': segment.get('text'),
+                    'confidence': segment.get('confidence', 0.0),
+                }
+            )
 
         result['timestamped_segments'] = timestamped_segments
         logger.debug(f"Created {len(timestamped_segments)} timestamped segments")
 
         return result
 
-    def batch_transcribe(
-        self,
-        audio_files: List[Path],
-        language: str = "af"
-    ) -> List[Dict]:
+    def batch_transcribe(self, audio_files: List[Path], language: str = "af") -> List[Dict]:
         """
         Transcribe multiple audio files
 
@@ -390,17 +350,104 @@ class WhisperTranscriber:
             'available_models': self.AVAILABLE_MODELS,
             'default_language': 'af',
             'supported_languages': [
-                'af', 'am', 'ar', 'as', 'az', 'ba', 'be', 'bg', 'bn', 'bo',
-                'br', 'bs', 'ca', 'cs', 'cy', 'da', 'de', 'el', 'en', 'es',
-                'et', 'eu', 'fa', 'fi', 'fo', 'fr', 'gl', 'gu', 'ha', 'haw',
-                'he', 'hi', 'hr', 'hu', 'hy', 'id', 'is', 'it', 'ja', 'jv',
-                'ka', 'kk', 'km', 'kn', 'ko', 'ky', 'la', 'lb', 'ln', 'lo',
-                'lt', 'lv', 'mk', 'ml', 'mn', 'mr', 'ms', 'mt', 'my', 'ne',
-                'nl', 'nn', 'no', 'oc', 'pa', 'pl', 'ps', 'pt', 'ro', 'ru',
-                'sa', 'sd', 'si', 'sk', 'sl', 'sn', 'so', 'sq', 'sr', 'su',
-                'sv', 'sw', 'ta', 'te', 'tg', 'th', 'tk', 'tl', 'tr', 'tt',
-                'uk', 'ur', 'uz', 'vi', 'yi', 'yo', 'zh'
-            ]
+                'af',
+                'am',
+                'ar',
+                'as',
+                'az',
+                'ba',
+                'be',
+                'bg',
+                'bn',
+                'bo',
+                'br',
+                'bs',
+                'ca',
+                'cs',
+                'cy',
+                'da',
+                'de',
+                'el',
+                'en',
+                'es',
+                'et',
+                'eu',
+                'fa',
+                'fi',
+                'fo',
+                'fr',
+                'gl',
+                'gu',
+                'ha',
+                'haw',
+                'he',
+                'hi',
+                'hr',
+                'hu',
+                'hy',
+                'id',
+                'is',
+                'it',
+                'ja',
+                'jv',
+                'ka',
+                'kk',
+                'km',
+                'kn',
+                'ko',
+                'ky',
+                'la',
+                'lb',
+                'ln',
+                'lo',
+                'lt',
+                'lv',
+                'mk',
+                'ml',
+                'mn',
+                'mr',
+                'ms',
+                'mt',
+                'my',
+                'ne',
+                'nl',
+                'nn',
+                'no',
+                'oc',
+                'pa',
+                'pl',
+                'ps',
+                'pt',
+                'ro',
+                'ru',
+                'sa',
+                'sd',
+                'si',
+                'sk',
+                'sl',
+                'sn',
+                'so',
+                'sq',
+                'sr',
+                'su',
+                'sv',
+                'sw',
+                'ta',
+                'te',
+                'tg',
+                'th',
+                'tk',
+                'tl',
+                'tr',
+                'tt',
+                'uk',
+                'ur',
+                'uz',
+                'vi',
+                'yi',
+                'yo',
+                'zh',
+            ],
         }
 
     def change_model(self, model_size: str) -> bool:
@@ -426,39 +473,36 @@ class WhisperTranscriber:
         except Exception as e:
             logger.error(f"Error changing model: {str(e)}")
             return False
-    
+
     def get_gpu_performance_info(self) -> Dict:
         """
         Get GPU performance information for the transcriber
-        
+
         Returns:
             Dictionary with GPU performance statistics
         """
         if not GPU_OPTIMIZATION_AVAILABLE:
-            return {
-                "gpu_optimization_available": False,
-                "message": "GPU optimization module not available"
-            }
-        
+            return {"gpu_optimization_available": False, "message": "GPU optimization module not available"}
+
         performance_info = {
             "gpu_optimization_available": True,
             "gpu_available": is_gpu_available(),
             "optimal_device": get_optimal_device(),
             "model_size": self.model_size,
-            "model_loaded": self.model is not None
+            "model_loaded": self.model is not None,
         }
-        
+
         # Add optimization settings if available
         if hasattr(self, '_optimization_settings'):
             performance_info["optimization_settings"] = self._optimization_settings
-        
+
         # Add GPU statistics if available
         if is_gpu_available():
             performance_info["gpu_stats"] = gpu_manager.get_performance_stats()
             performance_info["memory_info"] = gpu_manager.get_memory_info()
-        
+
         return performance_info
-    
+
     def cleanup_gpu_resources(self) -> None:
         """
         Clean up GPU resources used by the transcriber
@@ -468,42 +512,34 @@ class WhisperTranscriber:
             logger.info("GPU resources cleaned up")
         else:
             logger.debug("GPU optimization not available - no cleanup needed")
-    
-    def monitor_transcription_performance(
-        self,
-        audio_file: Path,
-        language: str = "af",
-        duration_seconds: float = 1.0
-    ) -> Dict:
+
+    def monitor_transcription_performance(self, audio_file: Path, language: str = "af", duration_seconds: float = 1.0) -> Dict:
         """
         Monitor GPU performance during transcription
-        
+
         Args:
             audio_file: Path to audio file
             language: Language code
             duration_seconds: Monitoring duration
-            
+
         Returns:
             Dictionary with performance monitoring results
         """
         if not GPU_OPTIMIZATION_AVAILABLE or not is_gpu_available():
             # Perform regular transcription without monitoring
             result = self.transcribe(audio_file, language)
-            result["performance_monitoring"] = {
-                "available": False,
-                "reason": "GPU not available or optimization disabled"
-            }
+            result["performance_monitoring"] = {"available": False, "reason": "GPU not available or optimization disabled"}
             return result
-        
+
         # Monitor GPU usage during transcription
         monitoring_results = gpu_manager.monitor_gpu_usage(duration_seconds)
-        
+
         # Perform transcription
         transcription_result = self.transcribe(audio_file, language)
-        
+
         # Combine results
         transcription_result["performance_monitoring"] = monitoring_results
-        
+
         return transcription_result
 
 
@@ -515,12 +551,7 @@ class TranscriptionPipeline:
     def __init__(self, model_size: str = WHISPER_MODEL_SIZE):
         self.transcriber = WhisperTranscriber(model_size)
 
-    def transcribe_audio_file(
-        self,
-        audio_file: Path,
-        language: str = "af",
-        with_timestamps: bool = True
-    ) -> Dict:
+    def transcribe_audio_file(self, audio_file: Path, language: str = "af", with_timestamps: bool = True) -> Dict:
         """
         Transcribe a single audio file
 
@@ -537,11 +568,7 @@ class TranscriptionPipeline:
         else:
             return self.transcriber.transcribe(audio_file, language)
 
-    def process_batch(
-        self,
-        audio_files: List[Path],
-        language: str = "af"
-    ) -> Dict:
+    def process_batch(self, audio_files: List[Path], language: str = "af") -> Dict:
         """
         Process batch of audio files
 
@@ -561,16 +588,12 @@ class TranscriptionPipeline:
 
         logger.info(f"Batch processing complete: {successful} successful, {failed} failed")
 
-        return {
-            'total_files': len(audio_files),
-            'successful': successful,
-            'failed': failed,
-            'results': results
-        }
+        return {'total_files': len(audio_files), 'successful': successful, 'failed': failed, 'results': results}
 
 
 if __name__ == "__main__":
     transcriber = WhisperTranscriber()
     print("Whisper Model Info:")
     import json
+
     print(json.dumps(transcriber.get_model_info(), indent=2))

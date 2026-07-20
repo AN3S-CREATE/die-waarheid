@@ -3,14 +3,14 @@ Deployment and DevOps utilities for Die Waarheid
 Environment management, configuration validation, and deployment helpers
 """
 
+import json
 import logging
 import os
-import json
 import shlex
-from typing import Dict, List, Any, Optional, Tuple
-from pathlib import Path
-from datetime import datetime
 import subprocess
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +34,11 @@ class EnvironmentValidator:
             True if valid
         """
         import sys
+
         current = sys.version_info[:2]
-        
+
         if current < min_version:
-            self.errors.append(
-                f"Python {min_version[0]}.{min_version[1]}+ required, "
-                f"found {current[0]}.{current[1]}"
-            )
+            self.errors.append(f"Python {min_version[0]}.{min_version[1]}+ required, " f"found {current[0]}.{current[1]}")
             return False
         return True
 
@@ -90,7 +88,7 @@ class EnvironmentValidator:
             True if all variables set
         """
         missing = [var for var in required_vars if not os.getenv(var)]
-        
+
         if missing:
             self.errors.append(f"Missing environment variables: {', '.join(missing)}")
             return False
@@ -107,7 +105,7 @@ class EnvironmentValidator:
             True if all exist
         """
         missing = [str(d) for d in required_dirs if not d.exists()]
-        
+
         if missing:
             self.errors.append(f"Missing directories: {', '.join(missing)}")
             return False
@@ -125,12 +123,12 @@ class EnvironmentValidator:
             True if all have permission
         """
         import os
-        
+
         permission_map = {'r': os.R_OK, 'w': os.W_OK, 'x': os.X_OK}
         perm = permission_map.get(permission, os.R_OK)
-        
+
         denied = [str(p) for p in paths if not os.access(p, perm)]
-        
+
         if denied:
             self.errors.append(f"Permission denied: {', '.join(denied)}")
             return False
@@ -142,7 +140,7 @@ class EnvironmentValidator:
             'timestamp': datetime.now().isoformat(),
             'valid': len(self.errors) == 0,
             'errors': self.errors,
-            'warnings': self.warnings
+            'warnings': self.warnings,
         }
 
 
@@ -171,7 +169,7 @@ class ConfigurationManager:
         """
         try:
             config_file = self.config_dir / f"{config_name}.json"
-            
+
             if not config_file.exists():
                 logger.warning(f"Config file not found: {config_file}")
                 return False
@@ -236,11 +234,7 @@ class DeploymentHelper:
     """Helper utilities for deployment"""
 
     @staticmethod
-    def create_deployment_package(
-        source_dir: Path,
-        output_file: Path,
-        exclude_patterns: List[str] = None
-    ) -> bool:
+    def create_deployment_package(source_dir: Path, output_file: Path, exclude_patterns: List[str] = None) -> bool:
         """
         Create deployment package
 
@@ -254,7 +248,7 @@ class DeploymentHelper:
         """
         try:
             import shutil
-            
+
             if exclude_patterns is None:
                 exclude_patterns = ['.git', '__pycache__', '.env', '*.pyc']
 
@@ -266,12 +260,7 @@ class DeploymentHelper:
                             ignored.append(file)
                 return ignored
 
-            shutil.make_archive(
-                str(output_file.with_suffix('')),
-                'zip',
-                source_dir,
-                ignore=ignore_patterns
-            )
+            shutil.make_archive(str(output_file.with_suffix('')), 'zip', source_dir, ignore=ignore_patterns)
 
             logger.info(f"Created deployment package: {output_file}")
             return True
@@ -297,13 +286,7 @@ class DeploymentHelper:
             if not command_parts:
                 return False, "Empty command"
 
-            result = subprocess.run(
-                command_parts,
-                shell=False,
-                cwd=cwd,
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(command_parts, shell=False, cwd=cwd, capture_output=True, text=True)
 
             if result.returncode == 0:
                 logger.info(f"Command succeeded: {command}")
@@ -327,15 +310,13 @@ class DeploymentHelper:
         Returns:
             True if successful
         """
-        success, output = DeploymentHelper.run_command(
-            f"pip install -r {requirements_file}"
-        )
-        
+        success, output = DeploymentHelper.run_command(f"pip install -r {requirements_file}")
+
         if success:
             logger.info("Dependencies installed successfully")
         else:
             logger.error(f"Dependency installation failed: {output}")
-        
+
         return success
 
 
@@ -365,12 +346,12 @@ class HealthCheckRunner:
             True if all checks pass
         """
         all_passed = True
-        
+
         for check_name, check_func in self.checks.items():
             try:
                 result = check_func()
                 self.results[check_name] = result
-                
+
                 if result:
                     logger.info(f"Health check passed: {check_name}")
                 else:
@@ -415,13 +396,13 @@ class RollbackManager:
         """
         try:
             import shutil
-            
+
             self.backup_dir.mkdir(parents=True, exist_ok=True)
             backup_path = self.backup_dir / backup_name
-            
+
             shutil.copytree(source_dir, backup_path, dirs_exist_ok=True)
             self.backups[backup_name] = backup_path
-            
+
             logger.info(f"Created backup: {backup_name}")
             return True
 
@@ -442,16 +423,16 @@ class RollbackManager:
         """
         try:
             import shutil
-            
+
             if backup_name not in self.backups:
                 logger.error(f"Backup not found: {backup_name}")
                 return False
 
             backup_path = self.backups[backup_name]
-            
+
             if target_dir.exists():
                 shutil.rmtree(target_dir)
-            
+
             shutil.copytree(backup_path, target_dir)
             logger.info(f"Restored backup: {backup_name}")
             return True
@@ -488,11 +469,7 @@ class DeploymentPlan:
             step_func: Step function
             critical: If True, failure stops deployment
         """
-        self.steps.append({
-            'name': step_name,
-            'func': step_func,
-            'critical': critical
-        })
+        self.steps.append({'name': step_name, 'func': step_func, 'critical': critical})
 
     def execute(self) -> Tuple[bool, List[str]]:
         """
@@ -505,7 +482,7 @@ class DeploymentPlan:
             try:
                 logger.info(f"Executing step: {step['name']}")
                 result = step['func']()
-                
+
                 if result:
                     self.executed_steps.append(step['name'])
                     logger.info(f"Step completed: {step['name']}")

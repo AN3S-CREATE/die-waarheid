@@ -4,9 +4,9 @@ Identifies and separates different speakers in audio files
 """
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
 
 import numpy as np
 
@@ -39,7 +39,7 @@ class SpeakerSegment:
             'end': self.end,
             'duration': self.duration,
             'speaker': self.speaker,
-            'confidence': self.confidence
+            'confidence': self.confidence,
         }
 
 
@@ -76,8 +76,8 @@ class SimpleDiarizer:
 
             energy = []
             for i in range(0, len(audio) - frame_length, hop_length):
-                frame = audio[i:i + frame_length]
-                energy.append(np.sum(frame ** 2))
+                frame = audio[i : i + frame_length]
+                energy.append(np.sum(frame**2))
 
             energy = np.array(energy)
             if len(energy) == 0:
@@ -87,7 +87,7 @@ class SimpleDiarizer:
 
             changes = []
             for i in range(1, len(energy_normalized)):
-                if abs(energy_normalized[i] - energy_normalized[i-1]) > threshold:
+                if abs(energy_normalized[i] - energy_normalized[i - 1]) > threshold:
                     changes.append(i)
 
             return changes
@@ -230,9 +230,8 @@ class DiarizationPipeline:
             if self.use_advanced:
                 try:
                     from pyannote.audio import Pipeline
-                    self.diarizer = Pipeline.from_pretrained(
-                        "pyannote/speaker-diarization-3.1"
-                    )
+
+                    self.diarizer = Pipeline.from_pretrained("pyannote/speaker-diarization-3.1")
                     logger.info("Initialized advanced diarization (pyannote)")
                     return True
                 except ImportError:
@@ -308,30 +307,17 @@ class DiarizationPipeline:
             total_duration += duration
 
             if speaker not in stats:
-                stats[speaker] = {
-                    'total_duration': 0,
-                    'segment_count': 0,
-                    'average_segment_duration': 0
-                }
+                stats[speaker] = {'total_duration': 0, 'segment_count': 0, 'average_segment_duration': 0}
 
             stats[speaker]['total_duration'] += duration
             stats[speaker]['segment_count'] += 1
 
         for speaker in stats:
             if stats[speaker]['segment_count'] > 0:
-                stats[speaker]['average_segment_duration'] = (
-                    stats[speaker]['total_duration'] / stats[speaker]['segment_count']
-                )
-            stats[speaker]['percentage'] = (
-                stats[speaker]['total_duration'] / total_duration * 100
-                if total_duration > 0 else 0
-            )
+                stats[speaker]['average_segment_duration'] = stats[speaker]['total_duration'] / stats[speaker]['segment_count']
+            stats[speaker]['percentage'] = stats[speaker]['total_duration'] / total_duration * 100 if total_duration > 0 else 0
 
-        return {
-            'total_duration': total_duration,
-            'speaker_count': len(stats),
-            'speakers': stats
-        }
+        return {'total_duration': total_duration, 'speaker_count': len(stats), 'speakers': stats}
 
 
 if __name__ == "__main__":

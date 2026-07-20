@@ -13,16 +13,17 @@ FEATURES:
 """
 
 import logging
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class RiskLevel(Enum):
     """Risk escalation levels"""
+
     MINIMAL = "minimal"
     LOW = "low"
     MODERATE = "moderate"
@@ -32,6 +33,7 @@ class RiskLevel(Enum):
 
 class EscalationAction(Enum):
     """Recommended escalation actions"""
+
     MONITOR = "monitor"
     INTERVIEW = "interview"
     CONFRONT = "confront"
@@ -43,27 +45,28 @@ class EscalationAction(Enum):
 @dataclass
 class ParticipantRisk:
     """Risk assessment for single participant"""
+
     participant_id: str
     participant_name: str
-    
+
     # Risk components
     contradiction_risk: float
     stress_risk: float
     manipulation_risk: float
     timeline_risk: float
     psychological_risk: float
-    
+
     # Overall
     overall_risk_score: float
     risk_level: RiskLevel
-    
+
     # Confidence
     confidence: float
-    
+
     # Trends
     risk_trend: str
     risk_change: float
-    
+
     # Recommendations
     recommended_action: EscalationAction
     action_rationale: str
@@ -72,32 +75,33 @@ class ParticipantRisk:
 @dataclass
 class CaseRiskAssessment:
     """Overall case risk assessment"""
+
     case_id: str
     assessment_timestamp: str
-    
+
     # Participant risks
     participant_a_risk: ParticipantRisk
     participant_b_risk: ParticipantRisk
-    
+
     # Combined risk
     combined_risk_score: float
     case_risk_level: RiskLevel
-    
+
     # Confidence
     overall_confidence: float
-    
+
     # Trends
     case_risk_trend: str
     case_risk_change: float
-    
+
     # Critical factors
     critical_factors: List[str]
     escalation_triggers: List[str]
-    
+
     # Recommendations
     recommended_escalation: EscalationAction
     recommended_next_steps: List[str]
-    
+
     # Timeline
     days_under_investigation: int
     evidence_count: int
@@ -127,7 +131,7 @@ class RiskEscalationMatrix:
         manipulation_indicators: int,
         timeline_inconsistencies: int,
         psychological_red_flags: int,
-        previous_assessment: Optional[ParticipantRisk] = None
+        previous_assessment: Optional[ParticipantRisk] = None,
     ) -> ParticipantRisk:
         """
         Assess risk for single participant
@@ -152,23 +156,23 @@ class RiskEscalationMatrix:
 
         # Calculate component risks (0-100)
         contradiction_risk = min(100, contradiction_count * 10 * contradiction_confidence)
-        
+
         stress_risk = 0.0
         if baseline_stress > 0:
             stress_ratio = current_stress / baseline_stress
             stress_risk = min(100, (stress_ratio - 1.0) * 50 + stress_spikes * 5)
-        
+
         manipulation_risk = min(100, manipulation_indicators * 15)
         timeline_risk = min(100, timeline_inconsistencies * 20)
         psychological_risk = min(100, psychological_red_flags * 12)
 
         # Calculate overall risk (weighted average)
         overall_risk = (
-            contradiction_risk * 0.25 +
-            stress_risk * 0.20 +
-            manipulation_risk * 0.20 +
-            timeline_risk * 0.20 +
-            psychological_risk * 0.15
+            contradiction_risk * 0.25
+            + stress_risk * 0.20
+            + manipulation_risk * 0.20
+            + timeline_risk * 0.20
+            + psychological_risk * 0.15
         )
 
         # Determine risk level
@@ -184,9 +188,9 @@ class RiskEscalationMatrix:
             risk_level = RiskLevel.MINIMAL
 
         # Calculate confidence
-        total_indicators = (contradiction_count + stress_spikes + 
-                           manipulation_indicators + timeline_inconsistencies + 
-                           psychological_red_flags)
+        total_indicators = (
+            contradiction_count + stress_spikes + manipulation_indicators + timeline_inconsistencies + psychological_red_flags
+        )
         confidence = min(1.0, total_indicators / 10.0)
 
         # Determine trend
@@ -201,14 +205,12 @@ class RiskEscalationMatrix:
 
         # Determine recommended action
         recommended_action = self._determine_escalation_action(
-            risk_level, contradiction_count, manipulation_indicators,
-            timeline_inconsistencies
+            risk_level, contradiction_count, manipulation_indicators, timeline_inconsistencies
         )
 
         # Generate rationale
         action_rationale = self._generate_action_rationale(
-            recommended_action, contradiction_count, stress_spikes,
-            manipulation_indicators, timeline_inconsistencies
+            recommended_action, contradiction_count, stress_spikes, manipulation_indicators, timeline_inconsistencies
         )
 
         risk = ParticipantRisk(
@@ -225,7 +227,7 @@ class RiskEscalationMatrix:
             risk_trend=trend,
             risk_change=risk_change,
             recommended_action=recommended_action,
-            action_rationale=action_rationale
+            action_rationale=action_rationale,
         )
 
         # Track history
@@ -243,7 +245,7 @@ class RiskEscalationMatrix:
         total_evidence: int,
         total_findings: int,
         days_under_investigation: int,
-        previous_case_assessment: Optional[CaseRiskAssessment] = None
+        previous_case_assessment: Optional[CaseRiskAssessment] = None,
     ) -> CaseRiskAssessment:
         """
         Assess overall case risk
@@ -264,10 +266,9 @@ class RiskEscalationMatrix:
 
         # Combined risk (average of both participants, weighted by confidence)
         combined_risk = (
-            (participant_a_risk.overall_risk_score * participant_a_risk.confidence +
-             participant_b_risk.overall_risk_score * participant_b_risk.confidence) /
-            (participant_a_risk.confidence + participant_b_risk.confidence)
-        )
+            participant_a_risk.overall_risk_score * participant_a_risk.confidence
+            + participant_b_risk.overall_risk_score * participant_b_risk.confidence
+        ) / (participant_a_risk.confidence + participant_b_risk.confidence)
 
         # Determine case risk level
         if combined_risk >= 80:
@@ -295,24 +296,16 @@ class RiskEscalationMatrix:
                 case_trend = "decreasing"
 
         # Identify critical factors
-        critical_factors = self._identify_critical_factors(
-            participant_a_risk, participant_b_risk
-        )
+        critical_factors = self._identify_critical_factors(participant_a_risk, participant_b_risk)
 
         # Identify escalation triggers
-        escalation_triggers = self._identify_escalation_triggers(
-            participant_a_risk, participant_b_risk, total_findings
-        )
+        escalation_triggers = self._identify_escalation_triggers(participant_a_risk, participant_b_risk, total_findings)
 
         # Determine escalation action
-        recommended_escalation = self._determine_case_escalation(
-            case_risk_level, critical_factors, escalation_triggers
-        )
+        recommended_escalation = self._determine_case_escalation(case_risk_level, critical_factors, escalation_triggers)
 
         # Generate next steps
-        next_steps = self._generate_next_steps(
-            recommended_escalation, critical_factors, escalation_triggers
-        )
+        next_steps = self._generate_next_steps(recommended_escalation, critical_factors, escalation_triggers)
 
         assessment = CaseRiskAssessment(
             case_id=case_id,
@@ -330,18 +323,14 @@ class RiskEscalationMatrix:
             recommended_next_steps=next_steps,
             days_under_investigation=days_under_investigation,
             evidence_count=total_evidence,
-            findings_count=total_findings
+            findings_count=total_findings,
         )
 
         self.assessments.append(assessment)
         return assessment
 
     def _determine_escalation_action(
-        self,
-        risk_level: RiskLevel,
-        contradiction_count: int,
-        manipulation_indicators: int,
-        timeline_inconsistencies: int
+        self, risk_level: RiskLevel, contradiction_count: int, manipulation_indicators: int, timeline_inconsistencies: int
     ) -> EscalationAction:
         """Determine recommended escalation action"""
         if risk_level == RiskLevel.CRITICAL:
@@ -370,7 +359,7 @@ class RiskEscalationMatrix:
         contradiction_count: int,
         stress_spikes: int,
         manipulation_indicators: int,
-        timeline_inconsistencies: int
+        timeline_inconsistencies: int,
     ) -> str:
         """Generate rationale for recommended action"""
         rationale = f"Recommended action: {action.value}. "
@@ -390,9 +379,7 @@ class RiskEscalationMatrix:
         return rationale
 
     def _identify_critical_factors(
-        self,
-        participant_a_risk: ParticipantRisk,
-        participant_b_risk: ParticipantRisk
+        self, participant_a_risk: ParticipantRisk, participant_b_risk: ParticipantRisk
     ) -> List[str]:
         """Identify critical factors in case"""
         factors = []
@@ -418,10 +405,7 @@ class RiskEscalationMatrix:
         return factors
 
     def _identify_escalation_triggers(
-        self,
-        participant_a_risk: ParticipantRisk,
-        participant_b_risk: ParticipantRisk,
-        total_findings: int
+        self, participant_a_risk: ParticipantRisk, participant_b_risk: ParticipantRisk, total_findings: int
     ) -> List[str]:
         """Identify escalation triggers"""
         triggers = []
@@ -444,10 +428,7 @@ class RiskEscalationMatrix:
         return triggers
 
     def _determine_case_escalation(
-        self,
-        risk_level: RiskLevel,
-        critical_factors: List[str],
-        escalation_triggers: List[str]
+        self, risk_level: RiskLevel, critical_factors: List[str], escalation_triggers: List[str]
     ) -> EscalationAction:
         """Determine case-level escalation action"""
         if risk_level == RiskLevel.CRITICAL:
@@ -466,10 +447,7 @@ class RiskEscalationMatrix:
             return EscalationAction.MONITOR
 
     def _generate_next_steps(
-        self,
-        escalation: EscalationAction,
-        critical_factors: List[str],
-        escalation_triggers: List[str]
+        self, escalation: EscalationAction, critical_factors: List[str], escalation_triggers: List[str]
     ) -> List[str]:
         """Generate recommended next steps"""
         steps = []
@@ -535,13 +513,13 @@ class RiskEscalationMatrix:
                     'name': assessment.participant_a_risk.participant_name,
                     'risk_score': assessment.participant_a_risk.overall_risk_score,
                     'risk_level': assessment.participant_a_risk.risk_level.value,
-                    'recommended_action': assessment.participant_a_risk.recommended_action.value
+                    'recommended_action': assessment.participant_a_risk.recommended_action.value,
                 },
                 'participant_b': {
                     'name': assessment.participant_b_risk.participant_name,
                     'risk_score': assessment.participant_b_risk.overall_risk_score,
                     'risk_level': assessment.participant_b_risk.risk_level.value,
-                    'recommended_action': assessment.participant_b_risk.recommended_action.value
+                    'recommended_action': assessment.participant_b_risk.recommended_action.value,
                 },
                 'critical_factors': assessment.critical_factors,
                 'escalation_triggers': assessment.escalation_triggers,
@@ -549,7 +527,7 @@ class RiskEscalationMatrix:
                 'recommended_next_steps': assessment.recommended_next_steps,
                 'evidence_count': assessment.evidence_count,
                 'findings_count': assessment.findings_count,
-                'days_under_investigation': assessment.days_under_investigation
+                'days_under_investigation': assessment.days_under_investigation,
             }
 
             with open(output_path, 'w', encoding='utf-8') as f:

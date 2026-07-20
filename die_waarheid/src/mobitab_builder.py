@@ -3,19 +3,14 @@ Mobitab Builder for Die Waarheid
 Generates forensic timelines with integrated audio and chat analysis
 """
 
+import json
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
-import json
 
 import pandas as pd
-
-from config import (
-    MOBITAB_COLUMNS,
-    MOBITAB_FILENAME,
-    MOBITAB_DIR
-)
+from config import MOBITAB_COLUMNS, MOBITAB_DIR, MOBITAB_FILENAME
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +26,7 @@ class MobitabBuilder:
         self.metadata = {}
         self.forensic_findings = {}
 
-    def add_chat_message(
-        self,
-        msg_id: str,
-        timestamp: datetime,
-        sender: str,
-        text: str,
-        message_type: str = "text"
-    ) -> None:
+    def add_chat_message(self, msg_id: str, timestamp: datetime, sender: str, text: str, message_type: str = "text") -> None:
         """
         Add chat message to timeline
 
@@ -61,20 +49,14 @@ class MobitabBuilder:
             'Silence_Ratio': 0.0,
             'Intensity_Max': 0.0,
             'Forensic_Flag': '',
-            'Message_Type': message_type
+            'Message_Type': message_type,
         }
 
         self.timeline_data.append(entry)
         logger.debug(f"Added chat message: {msg_id} from {sender}")
 
     def add_audio_analysis(
-        self,
-        msg_id: str,
-        timestamp: datetime,
-        sender: str,
-        transcript: str,
-        forensics_result: Dict,
-        speaker_count: int = 1
+        self, msg_id: str, timestamp: datetime, sender: str, transcript: str, forensics_result: Dict, speaker_count: int = 1
     ) -> None:
         """
         Add audio analysis result to timeline
@@ -117,7 +99,7 @@ class MobitabBuilder:
             'Forensic_Flag': '|'.join(forensic_flags) if forensic_flags else '',
             'Message_Type': 'audio',
             'Stress_Level': round(stress_level, 2),
-            'Duration': forensics_result.get('duration', 0.0)
+            'Duration': forensics_result.get('duration', 0.0),
         }
 
         self.timeline_data.append(entry)
@@ -145,11 +127,7 @@ class MobitabBuilder:
         else:
             return "Calm"
 
-    def add_ai_analysis(
-        self,
-        msg_id: str,
-        ai_result: Dict
-    ) -> None:
+    def add_ai_analysis(self, msg_id: str, ai_result: Dict) -> None:
         """
         Add AI analysis results to existing timeline entry
 
@@ -167,11 +145,7 @@ class MobitabBuilder:
                 break
 
     def set_metadata(
-        self,
-        case_id: str,
-        chat_name: str,
-        participants: List[str],
-        date_range: Tuple[datetime, datetime]
+        self, case_id: str, chat_name: str, participants: List[str], date_range: Tuple[datetime, datetime]
     ) -> None:
         """
         Set timeline metadata
@@ -189,7 +163,7 @@ class MobitabBuilder:
             'start_date': date_range[0],
             'end_date': date_range[1],
             'generated_at': datetime.now(),
-            'total_entries': len(self.timeline_data)
+            'total_entries': len(self.timeline_data),
         }
 
         logger.info(f"Set metadata for case {case_id}: {len(self.timeline_data)} entries")
@@ -379,13 +353,10 @@ class MobitabBuilder:
                 'start_date': str(self.metadata.get('start_date')),
                 'end_date': str(self.metadata.get('end_date')),
                 'generated_at': str(self.metadata.get('generated_at')),
-                'total_entries': len(df_dict)
+                'total_entries': len(df_dict),
             }
 
-            export_data = {
-                'metadata': metadata_dict,
-                'timeline': df_dict
-            }
+            export_data = {'metadata': metadata_dict, 'timeline': df_dict}
 
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(export_data, f, indent=2, default=str)
@@ -434,7 +405,7 @@ if __name__ == "__main__":
         case_id="CASE_001",
         chat_name="Investigation Chat",
         participants=["Person A", "Person B"],
-        date_range=(datetime(2024, 1, 1), datetime(2024, 12, 31))
+        date_range=(datetime(2024, 1, 1), datetime(2024, 12, 31)),
     )
 
     print("Mobitab Builder initialized")

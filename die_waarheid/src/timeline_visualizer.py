@@ -3,11 +3,11 @@ Timeline Visualization for Die Waarheid
 Interactive visualizations and exports for reconstructed timelines
 """
 
+import json
 import logging
-from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from pathlib import Path
-import json
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,15 +24,15 @@ class TimelineVisualizer:
             'image': '#2ecc71',
             'video': '#9b59b6',
             'document': '#e74c3c',
-            'unknown': '#95a5a6'
+            'unknown': '#95a5a6',
         }
-        
+
         self.confidence_colors = {
             'certain': '#27ae60',
             'high': '#2ecc71',
             'medium': '#f1c40f',
             'low': '#e67e22',
-            'uncertain': '#e74c3c'
+            'uncertain': '#e74c3c',
         }
 
     def create_plotly_timeline(self, entries: List[Dict]) -> Any:
@@ -65,12 +65,12 @@ class TimelineVisualizer:
         for entry in entries:
             ts = datetime.fromisoformat(entry['timestamp']) if isinstance(entry['timestamp'], str) else entry['timestamp']
             timestamps.append(ts)
-            
+
             label = entry.get('speaker_id', 'Unknown')
             labels.append(label)
-            
+
             colors.append(self.color_map.get(entry.get('content_type', 'unknown'), '#95a5a6'))
-            
+
             hover = f"<b>{entry.get('entry_id', '')}</b><br>"
             hover += f"Time: {ts.strftime('%Y-%m-%d %H:%M:%S')}<br>"
             hover += f"Type: {entry.get('content_type', 'unknown')}<br>"
@@ -79,7 +79,7 @@ class TimelineVisualizer:
             if entry.get('transcription'):
                 hover += f"Text: {entry['transcription'][:50]}..."
             hover_texts.append(hover)
-            
+
             # Size based on duration or default
             duration = entry.get('duration', 10)
             sizes.append(max(10, min(30, (duration or 10) / 2)))
@@ -88,20 +88,17 @@ class TimelineVisualizer:
         fig = go.Figure()
 
         # Add scatter plot
-        fig.add_trace(go.Scatter(
-            x=timestamps,
-            y=labels,
-            mode='markers',
-            marker=dict(
-                size=sizes,
-                color=colors,
-                opacity=0.7,
-                line=dict(width=1, color='white')
-            ),
-            text=hover_texts,
-            hoverinfo='text',
-            name='Timeline Events'
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=timestamps,
+                y=labels,
+                mode='markers',
+                marker=dict(size=sizes, color=colors, opacity=0.7, line=dict(width=1, color='white')),
+                text=hover_texts,
+                hoverinfo='text',
+                name='Timeline Events',
+            )
+        )
 
         # Update layout
         fig.update_layout(
@@ -110,7 +107,7 @@ class TimelineVisualizer:
             yaxis_title='Speaker',
             height=500,
             showlegend=True,
-            hovermode='closest'
+            hovermode='closest',
         )
 
         return fig
@@ -126,8 +123,8 @@ class TimelineVisualizer:
             Plotly figure
         """
         try:
-            import plotly.express as px
             import pandas as pd
+            import plotly.express as px
         except ImportError:
             logger.error("Plotly or pandas not available")
             return None
@@ -140,14 +137,16 @@ class TimelineVisualizer:
         for entry in entries:
             ts = datetime.fromisoformat(entry['timestamp']) if isinstance(entry['timestamp'], str) else entry['timestamp']
             duration = entry.get('duration', 5)  # Default 5 seconds
-            
-            gantt_data.append({
-                'Task': entry.get('speaker_id', 'Unknown'),
-                'Start': ts,
-                'Finish': ts + timedelta(seconds=duration or 5),
-                'Type': entry.get('content_type', 'unknown'),
-                'Confidence': entry.get('timestamp_confidence', 'unknown')
-            })
+
+            gantt_data.append(
+                {
+                    'Task': entry.get('speaker_id', 'Unknown'),
+                    'Start': ts,
+                    'Finish': ts + timedelta(seconds=duration or 5),
+                    'Type': entry.get('content_type', 'unknown'),
+                    'Confidence': entry.get('timestamp_confidence', 'unknown'),
+                }
+            )
 
         df = pd.DataFrame(gantt_data)
 
@@ -158,7 +157,7 @@ class TimelineVisualizer:
             y='Task',
             color='Type',
             title='Timeline Gantt Chart',
-            color_discrete_map=self.color_map
+            color_discrete_map=self.color_map,
         )
 
         fig.update_layout(height=400)
@@ -192,17 +191,9 @@ class TimelineVisualizer:
         values = list(confidence_counts.values())
         colors = [self.confidence_colors.get(l, '#95a5a6') for l in labels]
 
-        fig = go.Figure(data=[go.Pie(
-            labels=labels,
-            values=values,
-            marker=dict(colors=colors),
-            hole=0.4
-        )])
+        fig = go.Figure(data=[go.Pie(labels=labels, values=values, marker=dict(colors=colors), hole=0.4)])
 
-        fig.update_layout(
-            title='Timestamp Confidence Distribution',
-            height=350
-        )
+        fig.update_layout(title='Timestamp Confidence Distribution', height=350)
 
         return fig
 
@@ -233,18 +224,9 @@ class TimelineVisualizer:
         hours = list(range(24))
         counts = [hourly_counts[h] for h in hours]
 
-        fig = go.Figure(data=[go.Bar(
-            x=[f"{h:02d}:00" for h in hours],
-            y=counts,
-            marker_color='#3498db'
-        )])
+        fig = go.Figure(data=[go.Bar(x=[f"{h:02d}:00" for h in hours], y=counts, marker_color='#3498db')])
 
-        fig.update_layout(
-            title='Activity by Hour of Day',
-            xaxis_title='Hour',
-            yaxis_title='Number of Events',
-            height=300
-        )
+        fig.update_layout(title='Activity by Hour of Day', xaxis_title='Hour', yaxis_title='Number of Events', height=300)
 
         return fig
 
@@ -259,8 +241,8 @@ class TimelineVisualizer:
             Plotly figure
         """
         try:
-            import plotly.graph_objects as go
             import numpy as np
+            import plotly.graph_objects as go
         except ImportError:
             return None
 
@@ -269,8 +251,7 @@ class TimelineVisualizer:
 
         # Get date range
         timestamps = [
-            datetime.fromisoformat(e['timestamp']) if isinstance(e['timestamp'], str) else e['timestamp']
-            for e in entries
+            datetime.fromisoformat(e['timestamp']) if isinstance(e['timestamp'], str) else e['timestamp'] for e in entries
         ]
         min_date = min(timestamps).date()
         max_date = max(timestamps).date()
@@ -284,18 +265,17 @@ class TimelineVisualizer:
             matrix[day_idx][ts.hour] += 1
 
         # Create heatmap
-        fig = go.Figure(data=go.Heatmap(
-            z=matrix,
-            x=[f"{h:02d}:00" for h in range(24)],
-            y=[(min_date + timedelta(days=d)).strftime('%Y-%m-%d') for d in range(days)],
-            colorscale='Blues'
-        ))
+        fig = go.Figure(
+            data=go.Heatmap(
+                z=matrix,
+                x=[f"{h:02d}:00" for h in range(24)],
+                y=[(min_date + timedelta(days=d)).strftime('%Y-%m-%d') for d in range(days)],
+                colorscale='Blues',
+            )
+        )
 
         fig.update_layout(
-            title='Activity Heatmap (Days x Hours)',
-            xaxis_title='Hour of Day',
-            yaxis_title='Date',
-            height=max(300, days * 20)
+            title='Activity Heatmap (Days x Hours)', xaxis_title='Hour of Day', yaxis_title='Date', height=max(300, days * 20)
         )
 
         return fig
@@ -329,11 +309,7 @@ class TimelineVisualizer:
 
         # Create subplots
         fig = make_subplots(
-            rows=len(speakers),
-            cols=1,
-            shared_xaxes=True,
-            subplot_titles=list(speakers.keys()),
-            vertical_spacing=0.05
+            rows=len(speakers), cols=1, shared_xaxes=True, subplot_titles=list(speakers.keys()), vertical_spacing=0.05
         )
 
         colors = ['#3498db', '#e74c3c', '#2ecc71', '#9b59b6', '#f1c40f']
@@ -343,36 +319,24 @@ class TimelineVisualizer:
                 datetime.fromisoformat(e['timestamp']) if isinstance(e['timestamp'], str) else e['timestamp']
                 for e in speaker_entries
             ]
-            
+
             fig.add_trace(
                 go.Scatter(
                     x=timestamps,
                     y=[1] * len(timestamps),
                     mode='markers',
-                    marker=dict(
-                        size=10,
-                        color=colors[idx % len(colors)]
-                    ),
-                    name=speaker
+                    marker=dict(size=10, color=colors[idx % len(colors)]),
+                    name=speaker,
                 ),
                 row=idx + 1,
-                col=1
+                col=1,
             )
 
-        fig.update_layout(
-            height=150 * len(speakers) + 100,
-            title='Timeline by Speaker',
-            showlegend=True
-        )
+        fig.update_layout(height=150 * len(speakers) + 100, title='Timeline by Speaker', showlegend=True)
 
         return fig
 
-    def export_html_report(
-        self,
-        entries: List[Dict],
-        output_path: Path,
-        title: str = "Timeline Report"
-    ) -> bool:
+    def export_html_report(self, entries: List[Dict], output_path: Path, title: str = "Timeline Report") -> bool:
         """
         Export complete HTML report with all visualizations
 
@@ -432,14 +396,16 @@ class TimelineVisualizer:
             html_parts.append('<h2>Timeline Entries</h2>')
             for entry in entries:
                 ts = entry.get('timestamp', 'Unknown')
-                html_parts.append(f"""
+                html_parts.append(
+                    f"""
 <div class="entry">
     <strong>{ts}</strong> [{entry.get('timestamp_confidence', 'unknown')}]<br>
     Type: {entry.get('content_type', 'unknown')} | 
     Speaker: {entry.get('speaker_id', 'Unknown')}<br>
     {f"<em>{entry.get('transcription', '')}</em>" if entry.get('transcription') else ''}
 </div>
-""")
+"""
+                )
 
             html_parts.append('</body></html>')
 
@@ -477,16 +443,11 @@ class TimelineAnalyzer:
         # Sort by timestamp
         sorted_entries = sorted(
             entries,
-            key=lambda x: datetime.fromisoformat(x['timestamp']) if isinstance(x['timestamp'], str) else x['timestamp']
+            key=lambda x: datetime.fromisoformat(x['timestamp']) if isinstance(x['timestamp'], str) else x['timestamp'],
         )
 
         # Analyze patterns
-        patterns = {
-            'response_times': [],
-            'active_hours': {},
-            'speaker_patterns': {},
-            'conversation_gaps': []
-        }
+        patterns = {'response_times': [], 'active_hours': {}, 'speaker_patterns': {}, 'conversation_gaps': []}
 
         prev_entry = None
         for entry in sorted_entries:
@@ -499,13 +460,8 @@ class TimelineAnalyzer:
 
             # Track speaker patterns
             if speaker not in patterns['speaker_patterns']:
-                patterns['speaker_patterns'][speaker] = {
-                    'count': 0,
-                    'total_duration': 0,
-                    'first_seen': ts,
-                    'last_seen': ts
-                }
-            
+                patterns['speaker_patterns'][speaker] = {'count': 0, 'total_duration': 0, 'first_seen': ts, 'last_seen': ts}
+
             patterns['speaker_patterns'][speaker]['count'] += 1
             patterns['speaker_patterns'][speaker]['last_seen'] = ts
             if entry.get('duration'):
@@ -513,25 +469,23 @@ class TimelineAnalyzer:
 
             # Calculate response times between different speakers
             if prev_entry:
-                prev_ts = datetime.fromisoformat(prev_entry['timestamp']) if isinstance(prev_entry['timestamp'], str) else prev_entry['timestamp']
+                prev_ts = (
+                    datetime.fromisoformat(prev_entry['timestamp'])
+                    if isinstance(prev_entry['timestamp'], str)
+                    else prev_entry['timestamp']
+                )
                 prev_speaker = prev_entry.get('speaker_id', 'Unknown')
-                
+
                 gap = (ts - prev_ts).total_seconds()
-                
+
                 if prev_speaker != speaker:
-                    patterns['response_times'].append({
-                        'from': prev_speaker,
-                        'to': speaker,
-                        'gap_seconds': gap
-                    })
-                
+                    patterns['response_times'].append({'from': prev_speaker, 'to': speaker, 'gap_seconds': gap})
+
                 # Flag large gaps
                 if gap > 3600:  # More than 1 hour
-                    patterns['conversation_gaps'].append({
-                        'start': prev_ts.isoformat(),
-                        'end': ts.isoformat(),
-                        'gap_hours': gap / 3600
-                    })
+                    patterns['conversation_gaps'].append(
+                        {'start': prev_ts.isoformat(), 'end': ts.isoformat(), 'gap_hours': gap / 3600}
+                    )
 
             prev_entry = entry
 
@@ -564,31 +518,41 @@ class TimelineAnalyzer:
 
         sorted_entries = sorted(
             entries,
-            key=lambda x: datetime.fromisoformat(x['timestamp']) if isinstance(x['timestamp'], str) else x['timestamp']
+            key=lambda x: datetime.fromisoformat(x['timestamp']) if isinstance(x['timestamp'], str) else x['timestamp'],
         )
 
         # Calculate average gap
         gaps = []
         for i in range(1, len(sorted_entries)):
-            ts1 = datetime.fromisoformat(sorted_entries[i-1]['timestamp']) if isinstance(sorted_entries[i-1]['timestamp'], str) else sorted_entries[i-1]['timestamp']
-            ts2 = datetime.fromisoformat(sorted_entries[i]['timestamp']) if isinstance(sorted_entries[i]['timestamp'], str) else sorted_entries[i]['timestamp']
+            ts1 = (
+                datetime.fromisoformat(sorted_entries[i - 1]['timestamp'])
+                if isinstance(sorted_entries[i - 1]['timestamp'], str)
+                else sorted_entries[i - 1]['timestamp']
+            )
+            ts2 = (
+                datetime.fromisoformat(sorted_entries[i]['timestamp'])
+                if isinstance(sorted_entries[i]['timestamp'], str)
+                else sorted_entries[i]['timestamp']
+            )
             gaps.append((ts2 - ts1).total_seconds())
 
         if not gaps:
             return anomalies
 
         avg_gap = sum(gaps) / len(gaps)
-        
+
         # Detect unusual gaps
         for i, gap in enumerate(gaps):
             if gap > avg_gap * 5:
-                anomalies.append({
-                    'type': 'large_gap',
-                    'entry_before': sorted_entries[i]['entry_id'],
-                    'entry_after': sorted_entries[i+1]['entry_id'],
-                    'gap_hours': gap / 3600,
-                    'description': f'Unusually large gap of {gap/3600:.1f} hours'
-                })
+                anomalies.append(
+                    {
+                        'type': 'large_gap',
+                        'entry_before': sorted_entries[i]['entry_id'],
+                        'entry_after': sorted_entries[i + 1]['entry_id'],
+                        'gap_hours': gap / 3600,
+                        'description': f'Unusually large gap of {gap/3600:.1f} hours',
+                    }
+                )
 
         # Detect timestamp clustering (potential batch upload)
         timestamp_minutes = {}
@@ -601,23 +565,27 @@ class TimelineAnalyzer:
 
         for minute, entry_ids in timestamp_minutes.items():
             if len(entry_ids) > 3:
-                anomalies.append({
-                    'type': 'timestamp_cluster',
-                    'minute': minute,
-                    'count': len(entry_ids),
-                    'entries': entry_ids,
-                    'description': f'{len(entry_ids)} entries at same minute - possible batch upload'
-                })
+                anomalies.append(
+                    {
+                        'type': 'timestamp_cluster',
+                        'minute': minute,
+                        'count': len(entry_ids),
+                        'entries': entry_ids,
+                        'description': f'{len(entry_ids)} entries at same minute - possible batch upload',
+                    }
+                )
 
         # Detect low confidence entries
         low_confidence = [e for e in entries if e.get('timestamp_confidence') in ['low', 'uncertain']]
         if low_confidence:
-            anomalies.append({
-                'type': 'low_confidence_timestamps',
-                'count': len(low_confidence),
-                'entries': [e['entry_id'] for e in low_confidence],
-                'description': f'{len(low_confidence)} entries with low timestamp confidence'
-            })
+            anomalies.append(
+                {
+                    'type': 'low_confidence_timestamps',
+                    'count': len(low_confidence),
+                    'entries': [e['entry_id'] for e in low_confidence],
+                    'description': f'{len(low_confidence)} entries with low timestamp confidence',
+                }
+            )
 
         return anomalies
 

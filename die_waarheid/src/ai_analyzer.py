@@ -4,17 +4,18 @@ Free AI-powered psychological profiling and pattern detection using Hugging Face
 Fallback to Gemini API if configured
 """
 
+import hashlib
 import logging
 import re
 import time
-import hashlib
-from typing import Dict, List, Optional, Tuple, Callable
 from datetime import datetime
-from functools import wraps, lru_cache
+from functools import lru_cache, wraps
+from typing import Callable, Dict, List, Optional, Tuple
 
 # Import free AI analyzer (primary)
 try:
     from src.free_ai_analyzer import get_free_ai_analyzer
+
     FREE_AI_AVAILABLE = True
 except ImportError:
     FREE_AI_AVAILABLE = False
@@ -23,23 +24,25 @@ except ImportError:
 # Import Gemini (fallback)
 try:
     import google.generativeai as genai
+
     GENAI_AVAILABLE = True
     import warnings
+
     warnings.filterwarnings("ignore", message=".*google.generativeai.*deprecated.*")
 except ImportError:
     GENAI_AVAILABLE = False
     genai = None
 
 from config import (
-    USE_FREE_AI,
-    GEMINI_API_KEY,
-    GEMINI_MODEL,
-    GEMINI_TEMPERATURE,
-    GEMINI_MAX_TOKENS,
-    GEMINI_SAFETY_SETTINGS,
     GASLIGHTING_PHRASES,
+    GEMINI_API_KEY,
+    GEMINI_MAX_TOKENS,
+    GEMINI_MODEL,
+    GEMINI_SAFETY_SETTINGS,
+    GEMINI_TEMPERATURE,
+    NARCISSISTIC_PATTERNS,
     TOXICITY_PHRASES,
-    NARCISSISTIC_PATTERNS
+    USE_FREE_AI,
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +52,7 @@ def rate_limit(calls_per_minute: int = 30):
     """Decorator for rate limiting API calls"""
     min_interval = 60.0 / calls_per_minute
     last_call = [0.0]
-    
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -58,12 +61,15 @@ def rate_limit(calls_per_minute: int = 30):
                 time.sleep(min_interval - elapsed)
             last_call[0] = time.time()
             return func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 
 def retry_with_backoff(max_attempts: int = 3, base_delay: float = 2.0):
     """Decorator for retry logic with exponential backoff"""
+
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -79,7 +85,9 @@ def retry_with_backoff(max_attempts: int = 3, base_delay: float = 2.0):
                     delay = base_delay * (2 ** (attempt - 1))
                     logger.warning(f"Attempt {attempt} failed, retrying in {delay}s: {str(e)}")
                     time.sleep(delay)
+
         return wrapper
+
     return decorator
 
 
@@ -97,13 +105,13 @@ class AIAnalyzer:
         self.cache_misses = 0
         self.free_ai = None
         self.use_free_ai = USE_FREE_AI
-        
+
         # Initialize AI systems
         self._initialize_ai_systems()
-        
+
         # Initialize LRU cache for AI responses
         self._init_cache()
-    
+
     def _initialize_ai_systems(self):
         """Initialize AI systems in order of preference"""
         # Try to initialize free AI first
@@ -118,7 +126,7 @@ class AIAnalyzer:
                     logger.warning("Free AI Analyzer failed to initialize, trying Gemini...")
             except Exception as e:
                 logger.warning(f"Free AI Analyzer initialization failed: {e}, trying Gemini...")
-        
+
         # Fallback to Gemini
         if self.configure_gemini():
             logger.info("✅ Gemini AI initialized as fallback")
@@ -128,29 +136,30 @@ class AIAnalyzer:
     def sanitize_input(self, text: str, max_length: int = 10000) -> str:
         """
         Enhanced sanitize user input for AI prompts with advanced security
-        
+
         Args:
             text: Input text to sanitize
             max_length: Maximum allowed length
-            
+
         Returns:
             Sanitized text
         """
         try:
             # Use advanced security module for comprehensive sanitization
             from src.security import sanitize_user_input
+
             return sanitize_user_input(text, max_length)
         except ImportError:
             # Fallback to basic sanitization if security module unavailable
             if not isinstance(text, str):
                 return ""
-            
+
             text = text[:max_length]
             text = text.replace('```', '')
             text = text.replace('"""', '')
             text = text.replace("'''", '')
             text = text.strip()
-            
+
             return text
         except Exception:
             # Graceful fallback when strict security sanitization blocks benign content.
@@ -179,10 +188,7 @@ class AIAnalyzer:
                 return False
 
             genai.configure(api_key=GEMINI_API_KEY)
-            self.model = genai.GenerativeModel(
-                model_name=GEMINI_MODEL,
-                safety_settings=GEMINI_SAFETY_SETTINGS
-            )
+            self.model = genai.GenerativeModel(model_name=GEMINI_MODEL, safety_settings=GEMINI_SAFETY_SETTINGS)
             self.configured = True
             logger.info(f"Configured Gemini model: {GEMINI_MODEL}")
             return True
@@ -195,28 +201,20 @@ class AIAnalyzer:
         """Initialize LRU cache for AI responses"""
         # Create a cached version of the analysis function
         self._cached_analyze = lru_cache(maxsize=self.cache_size)(self._analyze_uncached)
-        
+
     def _get_text_hash(self, text: str) -> str:
         """Generate hash for text to use as cache key"""
         return hashlib.sha256(text.encode('utf-8')).hexdigest()
-    
+
     def _analyze_uncached(self, text_hash: str, text: str) -> Dict:
         """Internal method for actual AI analysis (not cached)"""
         if not self.configured:
             logger.warning("No AI systems configured")
-            return {
-                'success': False,
-                'error': 'No AI systems configured',
-                'text': text,
-                'cached': False
-            }
+            return {'success': False, 'error': 'No AI systems configured', 'text': text, 'cached': False}
 
         if self.model is None and GENAI_AVAILABLE and self.configured:
             try:
-                self.model = genai.GenerativeModel(
-                    model_name=GEMINI_MODEL,
-                    safety_settings=GEMINI_SAFETY_SETTINGS
-                )
+                self.model = genai.GenerativeModel(model_name=GEMINI_MODEL, safety_settings=GEMINI_SAFETY_SETTINGS)
             except Exception as e:
                 error_msg = str(e).lower()
                 if "429" in error_msg or "quota" in error_msg:
@@ -247,13 +245,12 @@ Be concise and return only valid JSON."""
                 response = self.model.generate_content(
                     prompt,
                     generation_config=genai.types.GenerationConfig(
-                        temperature=GEMINI_TEMPERATURE,
-                        max_output_tokens=GEMINI_MAX_TOKENS
-                    )
+                        temperature=GEMINI_TEMPERATURE, max_output_tokens=GEMINI_MAX_TOKENS
+                    ),
                 )
 
                 result_text = response.text.strip()
-                
+
                 if result_text.startswith('```json'):
                     result_text = result_text[7:]
                 if result_text.startswith('```'):
@@ -262,6 +259,7 @@ Be concise and return only valid JSON."""
                     result_text = result_text[:-3]
 
                 import json
+
                 analysis = json.loads(result_text)
 
                 return {
@@ -272,7 +270,7 @@ Be concise and return only valid JSON."""
                     'aggression_level': analysis.get('aggression_level', 'low'),
                     'confidence': float(analysis.get('confidence', 0)),
                     'cached': False,
-                    'ai_system': 'gemini'
+                    'ai_system': 'gemini',
                 }
             except Exception as e:
                 error_msg = str(e).lower()
@@ -293,7 +291,7 @@ Be concise and return only valid JSON."""
                 if result['success']:
                     # Convert free AI format to expected format
                     analysis = result.get('analysis', {})
-                    
+
                     # Extract emotion
                     emotion = 'neutral'
                     if 'emotion' in analysis:
@@ -301,17 +299,17 @@ Be concise and return only valid JSON."""
                     elif 'sentiment' in analysis:
                         sentiment = analysis['sentiment'].get('polarity', 'neutral')
                         emotion = sentiment
-                    
+
                     # Extract toxicity score
                     toxicity_score = 0.0
                     if 'toxicity' in analysis:
                         toxicity_score = analysis['toxicity'].get('toxicity_score', 0.0)
-                    
+
                     # Extract aggression level
                     aggression_level = 'low'
                     if 'aggression' in analysis:
                         aggression_level = analysis['aggression'].get('level', 'low')
-                    
+
                     return {
                         'success': True,
                         'emotion': emotion,
@@ -321,20 +319,15 @@ Be concise and return only valid JSON."""
                         'text': text,
                         'cached': False,
                         'ai_system': 'free_ai',
-                        'full_analysis': analysis
+                        'full_analysis': analysis,
                     }
                 else:
                     logger.warning(f"Free AI analysis failed: {result.get('message', 'Unknown error')}")
             except Exception as e:
                 logger.warning(f"Free AI analysis error: {e}, falling back to Gemini")
-        
+
         # No AI systems available
-        return {
-            'success': False,
-            'error': 'No AI systems available',
-            'text': text,
-            'cached': False
-        }
+        return {'success': False, 'error': 'No AI systems available', 'text': text, 'cached': False}
 
     def analyze_message(self, text: str) -> Dict:
         """
@@ -349,11 +342,11 @@ Be concise and return only valid JSON."""
         """
         text = self.sanitize_input(text)
         text_hash = self._get_text_hash(text)
-        
+
         # Try cache first
         try:
             result = self._cached_analyze(text_hash, text)
-            
+
             # Check if result is an error (quota exceeded, deprecated model, etc.)
             error_type = result.get('error_type')
             if not result.get('success') and error_type in ['quota_exceeded', 'deprecated_model']:
@@ -362,7 +355,7 @@ Be concise and return only valid JSON."""
                 else:
                     logger.warning("API quota exceeded, using fallback analysis")
                 return self.analyze_message_fallback(text)
-            
+
             if result.get('cached', False):
                 self.cache_hits += 1
                 logger.debug(f"Cache hit for text hash: {text_hash[:8]}...")
@@ -377,7 +370,7 @@ Be concise and return only valid JSON."""
             logger.error(f"Error in cached analysis: {str(e)}")
             # Fall back to pattern-based analysis
             return self.analyze_message_fallback(text)
-    
+
     def analyze_message_fallback(self, text: str) -> Dict:
         """
         Fallback analysis when AI is unavailable
@@ -390,25 +383,25 @@ Be concise and return only valid JSON."""
             Dictionary with analysis results
         """
         text_lower = text.lower()
-        
+
         # Simple pattern matching for toxicity
         toxic_words = ['stupid', 'hate', 'idiot', 'shut up', 'dumb', 'useless', 'pathetic']
         toxicity_score = min(1.0, sum(1 for word in toxic_words if word in text_lower) / 3.0)
-        
+
         # Emotion detection based on keywords
         positive_words = ['happy', 'good', 'great', 'love', 'thank', 'please', 'yes']
         negative_words = ['angry', 'bad', 'terrible', 'hate', 'no', 'wrong', 'stupid']
-        
+
         positive_count = sum(1 for word in positive_words if word in text_lower)
         negative_count = sum(1 for word in negative_words if word in text_lower)
-        
+
         if positive_count > negative_count:
             emotion = 'positive'
         elif negative_count > positive_count:
             emotion = 'negative'
         else:
             emotion = 'neutral'
-        
+
         # Aggression level based on exclamation marks and caps
         aggression_indicators = text.count('!') + sum(1 for c in text if c.isupper())
         if aggression_indicators > 3:
@@ -417,10 +410,10 @@ Be concise and return only valid JSON."""
             aggression_level = 'medium'
         else:
             aggression_level = 'low'
-        
+
         # Confidence based on text length and patterns found
         confidence = min(0.8, len(text) / 100.0 + 0.3)
-        
+
         return {
             'success': True,
             'text': text,
@@ -429,21 +422,21 @@ Be concise and return only valid JSON."""
             'aggression_level': aggression_level,
             'confidence': confidence,
             'fallback': True,
-            'cached': False
+            'cached': False,
         }
-    
+
     def get_cache_stats(self) -> Dict:
         """Get cache performance statistics"""
         total_requests = self.cache_hits + self.cache_misses
         hit_rate = (self.cache_hits / total_requests * 100) if total_requests > 0 else 0
-        
+
         return {
             'cache_hits': self.cache_hits,
             'cache_misses': self.cache_misses,
             'hit_rate_percent': hit_rate,
-            'cache_size': self.cache_size
+            'cache_size': self.cache_size,
         }
-    
+
     def clear_cache(self):
         """Clear the analysis cache"""
         self._cached_analyze.cache_clear()
@@ -484,7 +477,7 @@ Be concise and return only valid JSON."""
             'gaslighting_detected': gaslighting_score > 0.3,
             'gaslighting_score': gaslighting_score,
             'detected_phrases': detected_phrases,
-            'confidence': 0.8 if detected_phrases else 0.1
+            'confidence': 0.8 if detected_phrases else 0.1,
         }
 
     def detect_toxicity(self, text: str) -> Dict:
@@ -510,7 +503,7 @@ Be concise and return only valid JSON."""
             'toxicity_detected': toxicity_score > 0.3,
             'toxicity_score': toxicity_score,
             'detected_phrases': detected_phrases,
-            'confidence': 0.8 if detected_phrases else 0.1
+            'confidence': 0.8 if detected_phrases else 0.1,
         }
 
     def detect_narcissistic_patterns(self, text: str) -> Dict:
@@ -545,7 +538,7 @@ Be concise and return only valid JSON."""
             'narcissistic_patterns_detected': narcissism_score > 0.3,
             'narcissism_score': narcissism_score,
             'detected_patterns': detected_patterns,
-            'confidence': 0.7 if detected_patterns else 0.1
+            'confidence': 0.7 if detected_patterns else 0.1,
         }
 
     @rate_limit(calls_per_minute=30)
@@ -573,7 +566,7 @@ Be concise and return only valid JSON."""
                 'communication_style': 'unknown',
                 'conflict_level': 0,
                 'manipulation_indicators': [],
-                'summary': 'AI analysis unavailable'
+                'summary': 'AI analysis unavailable',
             }
 
         # Use Free AI if available
@@ -582,13 +575,13 @@ Be concise and return only valid JSON."""
                 result = self.free_ai.analyze_conversation(messages)
                 if result['success']:
                     analysis = result.get('analysis', {})
-                    
+
                     # Convert free AI format to expected format
                     overall_tone = analysis.get('overall_sentiment', 'neutral')
                     power_dynamics = 'balanced'  # Default, could be enhanced
                     communication_style = 'direct'  # Default, could be enhanced
                     conflict_level = analysis.get('average_aggression', 0.0)
-                    
+
                     # Extract manipulation indicators from patterns
                     manipulation_indicators = []
                     if 'conversation_dynamics' in analysis:
@@ -596,9 +589,11 @@ Be concise and return only valid JSON."""
                         for sender, profile in dynamics.get('sender_profiles', {}).items():
                             if profile.get('avg_toxicity', 0) > 0.5:
                                 manipulation_indicators.append(f"{sender}: high toxicity")
-                    
-                    summary = f"Conversation analysis complete. Dominant emotion: {analysis.get('dominant_emotion', 'unknown')}"
-                    
+
+                    summary = (
+                        f"Conversation analysis complete. Dominant emotion: {analysis.get('dominant_emotion', 'unknown')}"
+                    )
+
                     return {
                         'success': True,
                         'overall_tone': overall_tone,
@@ -608,20 +603,19 @@ Be concise and return only valid JSON."""
                         'manipulation_indicators': manipulation_indicators,
                         'summary': summary,
                         'ai_system': 'free_ai',
-                        'full_analysis': analysis
+                        'full_analysis': analysis,
                     }
                 else:
                     logger.warning(f"Free AI conversation analysis failed: {result.get('message', 'Unknown error')}")
             except Exception as e:
                 logger.warning(f"Free AI conversation analysis error: {e}, falling back to Gemini")
-        
+
         # Fallback to Gemini
         if self.model:
             try:
-                conversation_text = "\n".join([
-                    f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}"
-                    for m in messages
-                ])
+                conversation_text = "\n".join(
+                    [f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}" for m in messages]
+                )
 
                 prompt = f"""Analyze this conversation for psychological dynamics and patterns:
 
@@ -640,13 +634,12 @@ Return only valid JSON."""
                 response = self.model.generate_content(
                     prompt,
                     generation_config=genai.types.GenerationConfig(
-                        temperature=GEMINI_TEMPERATURE,
-                        max_output_tokens=GEMINI_MAX_TOKENS
-                    )
+                        temperature=GEMINI_TEMPERATURE, max_output_tokens=GEMINI_MAX_TOKENS
+                    ),
                 )
-                
+
                 result_text = response.text.strip()
-                
+
                 if result_text.startswith('```json'):
                     result_text = result_text[7:]
                 if result_text.startswith('```'):
@@ -655,6 +648,7 @@ Return only valid JSON."""
                     result_text = result_text[:-3]
 
                 import json
+
                 analysis = json.loads(result_text)
 
                 return {
@@ -665,15 +659,12 @@ Return only valid JSON."""
                     'communication_style': analysis.get('communication_style', 'unknown'),
                     'conflict_level': float(analysis.get('conflict_level', 0)),
                     'manipulation_indicators': analysis.get('manipulation_indicators', []),
-                    'summary': analysis.get('summary', '')
+                    'summary': analysis.get('summary', ''),
                 }
 
             except Exception as e:
                 logger.error(f"Error analyzing conversation: {str(e)}")
-                return {
-                    'success': False,
-                    'message': f'Analysis error: {str(e)}'
-                }
+                return {'success': False, 'message': f'Analysis error: {str(e)}'}
 
     @rate_limit(calls_per_minute=30)
     @retry_with_backoff(max_attempts=3, base_delay=2.0)
@@ -691,10 +682,9 @@ Return only valid JSON."""
             return {'success': False, 'contradictions': []}
 
         try:
-            conversation_text = "\n".join([
-                f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}"
-                for m in messages
-            ])
+            conversation_text = "\n".join(
+                [f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}" for m in messages]
+            )
 
             prompt = f"""Identify contradictions and inconsistencies in this conversation:
 
@@ -711,13 +701,12 @@ Return only valid JSON."""
             response = self.model.generate_content(
                 prompt,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=GEMINI_TEMPERATURE,
-                    max_output_tokens=GEMINI_MAX_TOKENS
-                )
+                    temperature=GEMINI_TEMPERATURE, max_output_tokens=GEMINI_MAX_TOKENS
+                ),
             )
 
             result_text = response.text.strip()
-            
+
             if result_text.startswith('```json'):
                 result_text = result_text[7:]
             if result_text.startswith('```'):
@@ -726,22 +715,19 @@ Return only valid JSON."""
                 result_text = result_text[:-3]
 
             import json
+
             analysis = json.loads(result_text)
 
             return {
                 'success': True,
                 'contradictions': analysis.get('contradictions', []),
                 'inconsistency_score': float(analysis.get('inconsistency_score', 0)),
-                'reliability_assessment': analysis.get('reliability_assessment', 'unknown')
+                'reliability_assessment': analysis.get('reliability_assessment', 'unknown'),
             }
 
         except Exception as e:
             logger.error(f"Error detecting contradictions: {str(e)}")
-            return {
-                'success': False,
-                'message': f'Analysis error: {str(e)}',
-                'contradictions': []
-            }
+            return {'success': False, 'message': f'Analysis error: {str(e)}', 'contradictions': []}
 
     @rate_limit(calls_per_minute=30)
     @retry_with_backoff(max_attempts=3, base_delay=2.0)
@@ -769,7 +755,7 @@ Return only valid JSON."""
                 'risk_factors': [],
                 'communication_style': 'unknown',
                 'psychological_state': 'unknown',
-                'recommendations': ['AI analysis unavailable - install transformers or configure Gemini API key']
+                'recommendations': ['AI analysis unavailable - install transformers or configure Gemini API key'],
             }
 
         # Use Free AI if available
@@ -784,14 +770,13 @@ Return only valid JSON."""
                     logger.warning(f"Free AI profile generation failed: {result.get('message', 'Unknown error')}")
             except Exception as e:
                 logger.warning(f"Free AI profile generation error: {e}, falling back to Gemini")
-        
+
         # Fallback to Gemini
         if self.model:
             try:
-                conversation_text = "\n".join([
-                    f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}"
-                    for m in messages
-                ])
+                conversation_text = "\n".join(
+                    [f"{m.get('sender', 'Unknown')}: {self.sanitize_input(m.get('text', ''))}" for m in messages]
+                )
 
                 forensics_context = ""
                 if forensics_data:
@@ -816,13 +801,12 @@ Return only valid JSON."""
                 response = self.model.generate_content(
                     prompt,
                     generation_config=genai.types.GenerationConfig(
-                        temperature=GEMINI_TEMPERATURE,
-                        max_output_tokens=GEMINI_MAX_TOKENS
-                    )
+                        temperature=GEMINI_TEMPERATURE, max_output_tokens=GEMINI_MAX_TOKENS
+                    ),
                 )
 
                 result_text = response.text.strip()
-                
+
                 if result_text.startswith('```json'):
                     result_text = result_text[7:]
                 if result_text.startswith('```'):
@@ -831,6 +815,7 @@ Return only valid JSON."""
                     result_text = result_text[:-3]
 
                 import json
+
                 profile = json.loads(result_text)
 
                 return {
@@ -841,22 +826,15 @@ Return only valid JSON."""
                     'stress_indicators': profile.get('stress_indicators', []),
                     'relationship_dynamics': profile.get('relationship_dynamics', ''),
                     'risk_assessment': profile.get('risk_assessment', 'unknown'),
-                    'recommendations': profile.get('recommendations', [])
+                    'recommendations': profile.get('recommendations', []),
                 }
 
             except Exception as e:
                 logger.error(f"Error generating profile: {str(e)}")
-                return {
-                    'success': False,
-                    'message': f'Profile generation error: {str(e)}'
-                }
+                return {'success': False, 'message': f'Profile generation error: {str(e)}'}
 
     def calculate_trust_score(
-        self,
-        conversation_analysis: Dict,
-        contradiction_analysis: Dict,
-        toxicity_score: float,
-        gaslighting_score: float
+        self, conversation_analysis: Dict, contradiction_analysis: Dict, toxicity_score: float, gaslighting_score: float
     ) -> float:
         """
         Calculate composite trust score
@@ -897,7 +875,7 @@ Return only valid JSON."""
             'configured': self.configured,
             'model': GEMINI_MODEL,
             'temperature': GEMINI_TEMPERATURE,
-            'max_tokens': GEMINI_MAX_TOKENS
+            'max_tokens': GEMINI_MAX_TOKENS,
         }
 
 

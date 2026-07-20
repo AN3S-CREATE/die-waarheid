@@ -3,22 +3,22 @@ Unit tests for Pydantic data models
 Tests validation, serialization, and error handling
 """
 
-import pytest
 from datetime import datetime
-from pydantic import ValidationError
 
+import pytest
+from pydantic import ValidationError
 from src.models import (
+    AnalysisSession,
+    ContradictionAnalysis,
+    ConversationAnalysis,
     ForensicsResult,
+    GaslightingDetection,
     IntensityMetrics,
     Message,
-    ConversationAnalysis,
-    ContradictionAnalysis,
+    MessageAnalysis,
+    NarcissisticDetection,
     PsychologicalProfile,
     ToxicityDetection,
-    GaslightingDetection,
-    NarcissisticDetection,
-    MessageAnalysis,
-    AnalysisSession
 )
 
 
@@ -60,7 +60,7 @@ class TestForensicsResult:
             spectral_centroid=2500.0,
             stress_level=52.1,
             stress_threshold_exceeded=True,
-            high_cognitive_load=False
+            high_cognitive_load=False,
         )
         assert result.success is True
         assert result.filename == "test.wav"
@@ -81,7 +81,7 @@ class TestForensicsResult:
                 spectral_centroid=2500.0,
                 stress_level=52.1,
                 stress_threshold_exceeded=True,
-                high_cognitive_load=False
+                high_cognitive_load=False,
             )
 
     def test_invalid_stress_level_out_of_bounds(self):
@@ -99,7 +99,7 @@ class TestForensicsResult:
                 spectral_centroid=2500.0,
                 stress_level=150.0,
                 stress_threshold_exceeded=True,
-                high_cognitive_load=False
+                high_cognitive_load=False,
             )
 
     def test_empty_filename_raises_error(self):
@@ -117,7 +117,7 @@ class TestForensicsResult:
                 spectral_centroid=2500.0,
                 stress_level=52.1,
                 stress_threshold_exceeded=True,
-                high_cognitive_load=False
+                high_cognitive_load=False,
             )
 
     def test_json_serialization(self):
@@ -134,7 +134,7 @@ class TestForensicsResult:
             spectral_centroid=2500.0,
             stress_level=52.1,
             stress_threshold_exceeded=True,
-            high_cognitive_load=False
+            high_cognitive_load=False,
         )
         json_str = result.json()
         assert "test.wav" in json_str
@@ -146,55 +146,30 @@ class TestMessage:
 
     def test_valid_message(self):
         """Test creating valid message"""
-        msg = Message(
-            timestamp=datetime.now(),
-            sender="Alice",
-            text="Hello, how are you?",
-            message_type="text"
-        )
+        msg = Message(timestamp=datetime.now(), sender="Alice", text="Hello, how are you?", message_type="text")
         assert msg.sender == "Alice"
         assert msg.message_type == "text"
 
     def test_empty_sender_raises_error(self):
         """Test that empty sender raises validation error"""
         with pytest.raises(ValidationError):
-            Message(
-                timestamp=datetime.now(),
-                sender="",
-                text="Hello",
-                message_type="text"
-            )
+            Message(timestamp=datetime.now(), sender="", text="Hello", message_type="text")
 
     def test_empty_text_raises_error(self):
         """Test that empty text raises validation error"""
         with pytest.raises(ValidationError):
-            Message(
-                timestamp=datetime.now(),
-                sender="Alice",
-                text="",
-                message_type="text"
-            )
+            Message(timestamp=datetime.now(), sender="Alice", text="", message_type="text")
 
     def test_invalid_message_type(self):
         """Test that invalid message type raises validation error"""
         with pytest.raises(ValidationError):
-            Message(
-                timestamp=datetime.now(),
-                sender="Alice",
-                text="Hello",
-                message_type="invalid_type"
-            )
+            Message(timestamp=datetime.now(), sender="Alice", text="Hello", message_type="invalid_type")
 
     def test_valid_message_types(self):
         """Test all valid message types"""
         valid_types = ["text", "image", "audio", "video", "media", "link"]
         for msg_type in valid_types:
-            msg = Message(
-                timestamp=datetime.now(),
-                sender="Alice",
-                text="Hello",
-                message_type=msg_type
-            )
+            msg = Message(timestamp=datetime.now(), sender="Alice", text="Hello", message_type=msg_type)
             assert msg.message_type == msg_type
 
 
@@ -211,7 +186,7 @@ class TestConversationAnalysis:
             communication_style="direct",
             conflict_level=0.3,
             manipulation_indicators=["gaslighting", "blame_shifting"],
-            summary="Conversation shows balanced dynamics"
+            summary="Conversation shows balanced dynamics",
         )
         assert analysis.success is True
         assert analysis.total_messages == 100
@@ -226,7 +201,7 @@ class TestConversationAnalysis:
                 overall_tone="invalid_tone",
                 power_dynamics="balanced",
                 communication_style="direct",
-                conflict_level=0.3
+                conflict_level=0.3,
             )
 
     def test_invalid_conflict_level(self):
@@ -238,7 +213,7 @@ class TestConversationAnalysis:
                 overall_tone="mixed",
                 power_dynamics="balanced",
                 communication_style="direct",
-                conflict_level=1.5
+                conflict_level=1.5,
             )
 
 
@@ -255,7 +230,7 @@ class TestPsychologicalProfile:
             stress_indicators=["none"],
             relationship_dynamics="healthy",
             risk_assessment="low",
-            recommendations=["continue current approach"]
+            recommendations=["continue current approach"],
         )
         assert profile.success is True
         assert len(profile.personality_traits) == 2
@@ -263,18 +238,12 @@ class TestPsychologicalProfile:
     def test_invalid_emotional_regulation(self):
         """Test that invalid emotional regulation raises error"""
         with pytest.raises(ValidationError):
-            PsychologicalProfile(
-                success=True,
-                emotional_regulation="invalid"
-            )
+            PsychologicalProfile(success=True, emotional_regulation="invalid")
 
     def test_invalid_risk_assessment(self):
         """Test that invalid risk assessment raises error"""
         with pytest.raises(ValidationError):
-            PsychologicalProfile(
-                success=True,
-                risk_assessment="invalid"
-            )
+            PsychologicalProfile(success=True, risk_assessment="invalid")
 
 
 class TestToxicityDetection:
@@ -283,10 +252,7 @@ class TestToxicityDetection:
     def test_valid_toxicity_detection(self):
         """Test creating valid toxicity detection"""
         detection = ToxicityDetection(
-            toxicity_detected=True,
-            toxicity_score=0.85,
-            detected_phrases=["stupid", "idiot"],
-            confidence=0.92
+            toxicity_detected=True, toxicity_score=0.85, detected_phrases=["stupid", "idiot"], confidence=0.92
         )
         assert detection.toxicity_detected is True
         assert detection.toxicity_score == 0.85
@@ -294,12 +260,7 @@ class TestToxicityDetection:
     def test_invalid_toxicity_score(self):
         """Test that toxicity score out of bounds raises error"""
         with pytest.raises(ValidationError):
-            ToxicityDetection(
-                toxicity_detected=True,
-                toxicity_score=1.5,
-                detected_phrases=["stupid"],
-                confidence=0.92
-            )
+            ToxicityDetection(toxicity_detected=True, toxicity_score=1.5, detected_phrases=["stupid"], confidence=0.92)
 
 
 class TestMessageAnalysis:
@@ -313,7 +274,7 @@ class TestMessageAnalysis:
             emotion="positive",
             toxicity_score=0.1,
             aggression_level="low",
-            confidence=0.95
+            confidence=0.95,
         )
         assert analysis.success is True
         assert analysis.emotion == "positive"
@@ -327,19 +288,14 @@ class TestMessageAnalysis:
                 emotion="invalid_emotion",
                 toxicity_score=0.1,
                 aggression_level="low",
-                confidence=0.95
+                confidence=0.95,
             )
 
     def test_invalid_aggression_level(self):
         """Test that invalid aggression level raises error"""
         with pytest.raises(ValidationError):
             MessageAnalysis(
-                success=True,
-                text="Test",
-                emotion="positive",
-                toxicity_score=0.1,
-                aggression_level="invalid",
-                confidence=0.95
+                success=True, text="Test", emotion="positive", toxicity_score=0.1, aggression_level="invalid", confidence=0.95
             )
 
 
@@ -355,7 +311,7 @@ class TestAnalysisSession:
             total_audio_analyzed=10,
             average_stress_level=45.5,
             trust_score=75.0,
-            status="active"
+            status="active",
         )
         assert session.session_id == "SESSION_001"
         assert session.status == "active"
@@ -363,18 +319,11 @@ class TestAnalysisSession:
     def test_invalid_status(self):
         """Test that invalid status raises error"""
         with pytest.raises(ValidationError):
-            AnalysisSession(
-                session_id="SESSION_001",
-                case_id="CASE_001",
-                status="invalid_status"
-            )
+            AnalysisSession(session_id="SESSION_001", case_id="CASE_001", status="invalid_status")
 
     def test_default_values(self):
         """Test default values for optional fields"""
-        session = AnalysisSession(
-            session_id="SESSION_001",
-            case_id="CASE_001"
-        )
+        session = AnalysisSession(session_id="SESSION_001", case_id="CASE_001")
         assert session.total_messages_analyzed == 0
         assert session.total_audio_analyzed == 0
         assert session.status == "active"

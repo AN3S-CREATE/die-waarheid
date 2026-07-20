@@ -3,18 +3,18 @@ Pipeline Processor for Die Waarheid
 Automated pipeline: Upload → Transcribe → Analyze → AI Interpret → Results Table
 """
 
-import logging
-from pathlib import Path
-from datetime import datetime
-from typing import Dict, List, Optional, Any
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+import logging
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from src.whisper_transcriber import WhisperTranscriber
+from src.ai_analyzer import AIAnalyzer
 from src.forensics import ForensicsEngine
 from src.speaker_identification import SpeakerIdentificationSystem
-from src.ai_analyzer import AIAnalyzer
+from src.whisper_transcriber import WhisperTranscriber
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class PipelineProcessor:
     Automated forensic analysis pipeline
     Processes voice notes through complete analysis chain
     """
-    
+
     def __init__(self, case_id: str = "MAIN_CASE"):
         self.case_id = case_id
         self.transcriber = None
@@ -33,34 +33,29 @@ class PipelineProcessor:
         self.speaker_system = SpeakerIdentificationSystem(case_id)
         self.ai_analyzer = AIAnalyzer()
         self.results = []
-        
+
     def initialize_transcriber(self, model_size: str = "small"):
         """Initialize Whisper transcriber with specified model"""
         if self.transcriber is None or self.transcriber.model_size != model_size:
             logger.info(f"Loading Whisper {model_size} model...")
             self.transcriber = WhisperTranscriber(model_size)
-    
-    def process_voice_note(
-        self,
-        audio_path: Path,
-        language: str = "af",
-        model_size: str = "small"
-    ) -> Dict:
+
+    def process_voice_note(self, audio_path: Path, language: str = "af", model_size: str = "small") -> Dict:
         """
         Process single voice note through complete pipeline
-        
+
         Args:
             audio_path: Path to audio file
             language: Language code for transcription
             model_size: Whisper model size
-            
+
         Returns:
             Complete analysis results dictionary
         """
         # Input validation
         if not isinstance(audio_path, Path):
             audio_path = Path(audio_path)
-        
+
         if not audio_path.exists():
             return {
                 'filename': audio_path.name,
@@ -71,23 +66,18 @@ class PipelineProcessor:
                 'ai_interpretation': 'File not found',
                 'risk_score': 0,
                 'stress_level': 0,
-                'identified_speaker': 'Unknown'
+                'identified_speaker': 'Unknown',
             }
-        
+
         logger.info(f"Processing {audio_path.name} through pipeline...")
-        
-        result = {
-            'filename': audio_path.name,
-            'timestamp': datetime.now(),
-            'success': True,
-            'errors': []
-        }
-        
+
+        result = {'filename': audio_path.name, 'timestamp': datetime.now(), 'success': True, 'errors': []}
+
         try:
             # Step 1: Transcription
             self.initialize_transcriber(model_size)
             transcription = self.transcriber.transcribe(audio_path, language=language)
-            
+
             if transcription.get('success'):
                 result['transcription'] = transcription.get('text', '')
                 result['language'] = transcription.get('language', language)
@@ -95,10 +85,10 @@ class PipelineProcessor:
             else:
                 result['errors'].append(f"Transcription failed: {transcription.get('error')}")
                 result['transcription'] = ''
-            
+
             # Step 2: Forensic Analysis
             forensic_result = self.forensics.analyze(audio_path)
-            
+
             if forensic_result.get('success'):
                 result['stress_level'] = forensic_result.get('stress_level', 0)
                 result['pitch_volatility'] = forensic_result.get('pitch_volatility', 0)
@@ -108,19 +98,19 @@ class PipelineProcessor:
                 result['audio_quality'] = forensic_result.get('audio_quality', 'unknown')
             else:
                 result['errors'].append(f"Forensic analysis failed: {forensic_result.get('error')}")
-            
+
             # Step 3: Deception Detection (based on forensics)
             result['deception_indicators'] = self._detect_deception(
                 result.get('stress_level', 0),
                 result.get('pitch_volatility', 0),
                 result.get('silence_ratio', 0),
-                result.get('transcription', '')
+                result.get('transcription', ''),
             )
-            
+
             # Step 4: AI Analysis (if transcription available)
             if result.get('transcription'):
                 ai_analysis = self.ai_analyzer.analyze_message(result['transcription'])
-                
+
                 if ai_analysis.get('success'):
                     result['ai_interpretation'] = ai_analysis.get('analysis', '')
                     result['sentiment'] = ai_analysis.get('sentiment', 'neutral')
@@ -136,7 +126,7 @@ class PipelineProcessor:
                     result['errors'].append(f"AI analysis failed: {error_msg}")
             else:
                 result['ai_interpretation'] = "No transcription available for AI analysis"
-            
+
             # Step 5: Speaker Identification (if system initialized)
             try:
                 participants = self.speaker_system.get_all_participants()
@@ -148,92 +138,84 @@ class PipelineProcessor:
             except Exception as e:
                 result['identified_speaker'] = f"Error: {str(e)}"
                 result['errors'].append(f"Speaker identification failed: {str(e)}")
-            
+
             # Calculate overall risk score
             result['risk_score'] = self._calculate_risk_score(result)
-            
+
         except Exception as e:
             logger.error(f"Pipeline processing failed for {audio_path.name}: {str(e)}")
             result['success'] = False
             result['errors'].append(f"Pipeline error: {str(e)}")
-        
+
         self.results.append(result)
         return result
-    
+
     def _detect_deception(
-        self,
-        stress_level: float,
-        pitch_volatility: float,
-        silence_ratio: float,
-        transcription: str
+        self, stress_level: float, pitch_volatility: float, silence_ratio: float, transcription: str
     ) -> List[str]:
         """Detect deception indicators from forensic data"""
         indicators = []
-        
+
         if stress_level > 70:
             indicators.append(f"High vocal stress ({stress_level:.1f}%)")
-        
+
         if pitch_volatility >= 35:
             indicators.append(f"Unusual pitch variation ({pitch_volatility:.1f})")
-        
+
         if silence_ratio >= 0.3:
             indicators.append(f"Excessive pauses ({silence_ratio*100:.1f}%)")
-        
+
         # Linguistic indicators
         text_lower = transcription.lower()
         qualifier_phrases = ['honestly', 'to be honest', 'believe me', 'trust me', 'i swear']
-        
+
         for phrase in qualifier_phrases:
             if phrase in text_lower:
                 indicators.append(f"Qualifier language: '{phrase}'")
-        
+
         return indicators
-    
+
     def _calculate_risk_score(self, result: Dict) -> int:
         """Calculate overall risk score (0-100)"""
         score = 0
-        
+
         # Stress contribution (0-30 points)
         stress = result.get('stress_level', 0)
         score += min(40, stress * 0.5)
-        
+
         # Deception indicators (0-30 points)
         deception_count = len(result.get('deception_indicators', []))
         score += min(30, deception_count * 10)
-        
+
         # Gaslighting/toxicity (0-20 points)
         if result.get('gaslighting', {}).get('gaslighting_detected'):
             score += 10
         if result.get('toxicity', {}).get('toxicity_detected'):
             score += 10
-        
+
         # Narcissism (0-10 points)
         if result.get('narcissism', {}).get('narcissistic_patterns_detected'):
             score += 10
-        
+
         return min(100, int(score))
-    
+
     def process_batch(
-        self,
-        audio_files: List[Path],
-        language: str = "af",
-        model_size: str = "small",
-        max_workers: int = 4
+        self, audio_files: List[Path], language: str = "af", model_size: str = "small", max_workers: int = 4
     ) -> List[Dict[str, Any]]:
         """
         Process multiple voice notes through pipeline in parallel
-        
+
         Args:
             audio_files: List of audio file paths
             language: Language code
             model_size: Whisper model size
             max_workers: Number of parallel workers
-            
+
         Returns:
             List of analysis results
         """
         logger.info(f"Processing batch of {len(audio_files)} files with {max_workers} workers...")
-        
+
         results = []
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
@@ -241,7 +223,7 @@ class PipelineProcessor:
                 executor.submit(self.process_voice_note, audio_path, language, model_size): audio_path
                 for audio_path in audio_files
             }
-            
+
             # Collect results as they complete
             for future in as_completed(future_to_file):
                 audio_path = future_to_file[future]
@@ -252,48 +234,50 @@ class PipelineProcessor:
                 except Exception as e:
                     logger.error(f"Failed to process {audio_path.name}: {str(e)}")
                     # Add error result
-                    results.append({
-                        'filename': audio_path.name,
-                        'timestamp': datetime.now(),
-                        'success': False,
-                        'errors': [f"Processing failed: {str(e)}"],
-                        'transcription': '',
-                        'ai_interpretation': 'Processing failed',
-                        'risk_score': 0,
-                        'stress_level': 0,
-                        'identified_speaker': 'Unknown'
-                    })
-        
+                    results.append(
+                        {
+                            'filename': audio_path.name,
+                            'timestamp': datetime.now(),
+                            'success': False,
+                            'errors': [f"Processing failed: {str(e)}"],
+                            'transcription': '',
+                            'ai_interpretation': 'Processing failed',
+                            'risk_score': 0,
+                            'stress_level': 0,
+                            'identified_speaker': 'Unknown',
+                        }
+                    )
+
         return results
-    
+
     def get_chronological_results(self) -> List[Dict]:
         """Get all results sorted chronologically"""
         return sorted(self.results, key=lambda x: x['timestamp'])
-    
+
     def export_results(self, output_path: Path):
         """Export results to JSON file"""
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(self.get_chronological_results(), f, indent=2, default=str)
         logger.info(f"Results exported to {output_path}")
-    
+
     def get_summary_stats(self) -> Dict:
         """Get summary statistics from all processed files"""
         if not self.results:
             return {}
-        
+
         total = len(self.results)
         high_risk = sum(1 for r in self.results if r.get('risk_score', 0) > 70)
         deception_detected = sum(1 for r in self.results if r.get('deception_indicators'))
         gaslighting = sum(1 for r in self.results if r.get('gaslighting', {}).get('gaslighting_detected'))
-        
+
         avg_stress = round(sum(r.get('stress_level', 0) for r in self.results) / total, 2)
         avg_risk = round(sum(r.get('risk_score', 0) for r in self.results) / total, 2)
-        
+
         return {
             'total_files': total,
             'high_risk_count': high_risk,
             'deception_count': deception_detected,
             'gaslighting_count': gaslighting,
             'avg_stress_level': avg_stress,
-            'avg_risk_score': avg_risk
+            'avg_risk_score': avg_risk,
         }

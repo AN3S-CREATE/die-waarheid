@@ -12,42 +12,40 @@ CRITICAL: This module implements extreme fallback override for Afrikaans
 
 import logging
 import re
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import google.generativeai as genai
+
     GENAI_AVAILABLE = True
 except ImportError:
     GENAI_AVAILABLE = False
     genai = None
 
-from config import (
-    GEMINI_API_KEY,
-    GEMINI_MODEL,
-    GEMINI_TEMPERATURE,
-    GEMINI_SAFETY_SETTINGS
-)
+from config import GEMINI_API_KEY, GEMINI_MODEL, GEMINI_SAFETY_SETTINGS, GEMINI_TEMPERATURE
 
 logger = logging.getLogger(__name__)
 
 
 class ConfidenceLevel(Enum):
     """Confidence levels for transcription"""
-    VERIFIED = "verified"           # 100% confident - all checks agree
-    HIGH = "high"                   # 90%+ - most checks agree
-    MEDIUM = "medium"               # 70-90% - some disagreement
-    LOW = "low"                     # 50-70% - significant disagreement
-    UNCERTAIN = "uncertain"         # <50% - requires human review
-    FLAGGED = "flagged"            # Marked for mandatory human review
+
+    VERIFIED = "verified"  # 100% confident - all checks agree
+    HIGH = "high"  # 90%+ - most checks agree
+    MEDIUM = "medium"  # 70-90% - some disagreement
+    LOW = "low"  # 50-70% - significant disagreement
+    UNCERTAIN = "uncertain"  # <50% - requires human review
+    FLAGGED = "flagged"  # Marked for mandatory human review
 
 
 @dataclass
 class WordVerification:
     """Verification result for a single word"""
+
     word_afrikaans: str
     word_english: str
     confidence: float
@@ -63,6 +61,7 @@ class WordVerification:
 @dataclass
 class TranscriptionResult:
     """Complete transcription result with verification"""
+
     success: bool
     original_afrikaans: str
     translated_english: str
@@ -87,45 +86,94 @@ class AfrikaansWordBank:
 
     COMMON_WORDS = {
         # Pronouns
-        "ek": "I", "jy": "you", "hy": "he", "sy": "she", "ons": "we",
-        "julle": "you (plural)", "hulle": "they", "dit": "it",
-        
+        "ek": "I",
+        "jy": "you",
+        "hy": "he",
+        "sy": "she",
+        "ons": "we",
+        "julle": "you (plural)",
+        "hulle": "they",
+        "dit": "it",
         # Common verbs
-        "is": "is/am/are", "was": "was/were", "het": "have/has",
-        "kan": "can", "sal": "will/shall", "moet": "must",
-        "wil": "want", "gaan": "go", "kom": "come", "sê": "say",
-        "doen": "do", "maak": "make", "sien": "see", "weet": "know",
-        "dink": "think", "voel": "feel", "hoor": "hear", "praat": "speak/talk",
-        
+        "is": "is/am/are",
+        "was": "was/were",
+        "het": "have/has",
+        "kan": "can",
+        "sal": "will/shall",
+        "moet": "must",
+        "wil": "want",
+        "gaan": "go",
+        "kom": "come",
+        "sê": "say",
+        "doen": "do",
+        "maak": "make",
+        "sien": "see",
+        "weet": "know",
+        "dink": "think",
+        "voel": "feel",
+        "hoor": "hear",
+        "praat": "speak/talk",
         # Common nouns
-        "man": "man", "vrou": "woman", "kind": "child", "kinders": "children",
-        "huis": "house", "kar": "car", "werk": "work", "geld": "money",
-        "tyd": "time", "dag": "day", "nag": "night", "môre": "tomorrow",
-        "gister": "yesterday", "vandag": "today", "nou": "now",
-        
+        "man": "man",
+        "vrou": "woman",
+        "kind": "child",
+        "kinders": "children",
+        "huis": "house",
+        "kar": "car",
+        "werk": "work",
+        "geld": "money",
+        "tyd": "time",
+        "dag": "day",
+        "nag": "night",
+        "môre": "tomorrow",
+        "gister": "yesterday",
+        "vandag": "today",
+        "nou": "now",
         # Question words
-        "wat": "what", "wie": "who", "waar": "where", "wanneer": "when",
-        "waarom": "why", "hoe": "how", "hoeveel": "how much/many",
-        
+        "wat": "what",
+        "wie": "who",
+        "waar": "where",
+        "wanneer": "when",
+        "waarom": "why",
+        "hoe": "how",
+        "hoeveel": "how much/many",
         # Negation
-        "nie": "not", "niks": "nothing", "nooit": "never", "niemand": "nobody",
-        
+        "nie": "not",
+        "niks": "nothing",
+        "nooit": "never",
+        "niemand": "nobody",
         # Common adjectives
-        "groot": "big", "klein": "small", "goed": "good", "sleg": "bad",
-        "mooi": "beautiful", "lelik": "ugly", "nuut": "new", "oud": "old",
-        
+        "groot": "big",
+        "klein": "small",
+        "goed": "good",
+        "sleg": "bad",
+        "mooi": "beautiful",
+        "lelik": "ugly",
+        "nuut": "new",
+        "oud": "old",
         # Emotional/psychological terms (important for forensics)
-        "kwaad": "angry", "hartseer": "sad", "gelukkig": "happy",
-        "bang": "afraid", "bekommerd": "worried", "jaloers": "jealous",
-        "skuldig": "guilty", "onskuldig": "innocent",
-        
+        "kwaad": "angry",
+        "hartseer": "sad",
+        "gelukkig": "happy",
+        "bang": "afraid",
+        "bekommerd": "worried",
+        "jaloers": "jealous",
+        "skuldig": "guilty",
+        "onskuldig": "innocent",
         # Relationship terms
-        "liefde": "love", "haat": "hate", "vertrou": "trust",
-        "verraai": "betray", "lieg": "lie", "waarheid": "truth",
-        
+        "liefde": "love",
+        "haat": "hate",
+        "vertrou": "trust",
+        "verraai": "betray",
+        "lieg": "lie",
+        "waarheid": "truth",
         # Legal/forensic terms
-        "getuie": "witness", "bewys": "evidence", "skuld": "guilt/debt",
-        "straf": "punishment", "reg": "right/law", "verkeerd": "wrong",
+        "getuie": "witness",
+        "bewys": "evidence",
+        "skuld": "guilt/debt",
+        "straf": "punishment",
+        "reg": "right/law",
+        "verkeerd": "wrong",
     }
 
     COMMON_PHRASES = {
@@ -200,10 +248,7 @@ class AfrikaansTranscriptionEngine:
         if GENAI_AVAILABLE and GEMINI_API_KEY:
             try:
                 genai.configure(api_key=GEMINI_API_KEY)
-                self.model = genai.GenerativeModel(
-                    model_name=GEMINI_MODEL,
-                    safety_settings=GEMINI_SAFETY_SETTINGS
-                )
+                self.model = genai.GenerativeModel(model_name=GEMINI_MODEL, safety_settings=GEMINI_SAFETY_SETTINGS)
                 self.gemini_configured = True
                 self.engines.append("gemini")
                 logger.info("Gemini configured for Afrikaans transcription")
@@ -266,16 +311,16 @@ RESPOND IN JSON FORMAT:
             response = self.model.generate_content(
                 prompt,
                 generation_config=genai.types.GenerationConfig(
-                    temperature=0.1,  # Low temperature for accuracy
-                    max_output_tokens=2000
-                )
+                    temperature=0.1, max_output_tokens=2000  # Low temperature for accuracy
+                ),
             )
 
             # Parse response
             response_text = response.text
-            
+
             # Extract JSON
             import json
+
             json_match = re.search(r'\{[\s\S]*\}', response_text)
             if json_match:
                 result = json.loads(json_match.group())
@@ -283,16 +328,12 @@ RESPOND IN JSON FORMAT:
                 result['engine'] = 'gemini'
                 return result
 
-            return {
-                "success": False,
-                "error": "Could not parse response",
-                "raw_response": response_text
-            }
+            return {"success": False, "error": "Could not parse response", "raw_response": response_text}
 
         except Exception as e:
             error_str = str(e)
             error_lower = error_str.lower()
-            
+
             # Check for 410 status code (deprecated/gone endpoint)
             if '410' in error_str or 'gone' in error_lower or 'deprecated' in error_lower:
                 logger.error(f"Gemini API endpoint deprecated (410): {e}")
@@ -318,11 +359,7 @@ class AfrikaansVerificationSystem:
         self.review_threshold = 0.70  # Below 70% requires human review
 
     def verify_transcription(
-        self,
-        afrikaans_text: str,
-        speaker_id: Optional[str] = None,
-        audio_layer: str = "foreground",
-        context: str = ""
+        self, afrikaans_text: str, speaker_id: Optional[str] = None, audio_layer: str = "foreground", context: str = ""
     ) -> TranscriptionResult:
         """
         Perform multi-layer verification of Afrikaans transcription
@@ -340,32 +377,26 @@ class AfrikaansVerificationSystem:
 
         # Layer 1: Initial transcription/translation
         layer1_result = self._layer1_initial_transcription(afrikaans_text, context)
-        
+
         # Layer 2: Word-by-word validation
         layer2_result = self._layer2_word_validation(layer1_result)
-        
+
         # Layer 3: Cross-reference check
         layer3_result = self._layer3_cross_reference(layer2_result, context)
-        
+
         # Layer 4: Final verification and confidence scoring
-        final_result = self._layer4_final_verification(
-            layer3_result, speaker_id, audio_layer
-        )
+        final_result = self._layer4_final_verification(layer3_result, speaker_id, audio_layer)
 
         return final_result
 
-    def _layer1_initial_transcription(
-        self,
-        text: str,
-        context: str
-    ) -> Dict[str, Any]:
+    def _layer1_initial_transcription(self, text: str, context: str) -> Dict[str, Any]:
         """
         Layer 1: Initial transcription using multiple engines
         """
         logger.debug("Layer 1: Initial transcription")
-        
+
         results = []
-        
+
         # Gemini transcription
         gemini_result = self.transcription_engine.transcribe_with_gemini(text, context)
         if gemini_result.get('success'):
@@ -373,41 +404,32 @@ class AfrikaansVerificationSystem:
 
         # If no results, create basic result
         if not results:
-            return {
-                'original': text,
-                'translations': [],
-                'success': False,
-                'error': 'No transcription engines available'
-            }
+            return {'original': text, 'translations': [], 'success': False, 'error': 'No transcription engines available'}
 
-        return {
-            'original': text,
-            'translations': results,
-            'success': True
-        }
+        return {'original': text, 'translations': results, 'success': True}
 
     def _layer2_word_validation(self, layer1_result: Dict) -> Dict[str, Any]:
         """
         Layer 2: Word-by-word validation against word bank
         """
         logger.debug("Layer 2: Word validation")
-        
+
         if not layer1_result.get('success'):
             return layer1_result
 
         word_validations = []
-        
+
         for translation in layer1_result.get('translations', []):
             word_by_word = translation.get('word_by_word', [])
-            
+
             for word_info in word_by_word:
                 afrikaans_word = word_info.get('afrikaans', '')
                 english_word = word_info.get('english', '')
                 confidence = word_info.get('confidence', 0) / 100
-                
+
                 # Check against word bank
                 bank_translation = self.word_bank.get_translation(afrikaans_word)
-                
+
                 if bank_translation:
                     # Word found in bank - verify match
                     if bank_translation.lower() == english_word.lower():
@@ -430,33 +452,25 @@ class AfrikaansVerificationSystem:
         layer1_result['word_validations'] = word_validations
         return layer1_result
 
-    def _layer3_cross_reference(
-        self,
-        layer2_result: Dict,
-        context: str
-    ) -> Dict[str, Any]:
+    def _layer3_cross_reference(self, layer2_result: Dict, context: str) -> Dict[str, Any]:
         """
         Layer 3: Cross-reference with context and phrase matching
         """
         logger.debug("Layer 3: Cross-reference check")
-        
+
         if not layer2_result.get('success'):
             return layer2_result
 
         original_text = layer2_result.get('original', '').lower()
-        
+
         # Check for known phrases
         phrase_matches = []
         for phrase, translation in self.word_bank.COMMON_PHRASES.items():
             if phrase in original_text:
-                phrase_matches.append({
-                    'phrase': phrase,
-                    'translation': translation,
-                    'found': True
-                })
+                phrase_matches.append({'phrase': phrase, 'translation': translation, 'found': True})
 
         layer2_result['phrase_matches'] = phrase_matches
-        
+
         # Re-verify with Gemini using phrase context
         if phrase_matches and self.transcription_engine.gemini_configured:
             verification_prompt = f"""
@@ -476,25 +490,21 @@ Please verify the translation is accurate. Check for:
 Return JSON with verification_passed (true/false) and any corrections."""
 
             verify_result = self.transcription_engine.transcribe_with_gemini(
-                layer2_result.get('original', ''),
-                verification_prompt
+                layer2_result.get('original', ''), verification_prompt
             )
-            
+
             layer2_result['cross_reference_verification'] = verify_result
 
         return layer2_result
 
     def _layer4_final_verification(
-        self,
-        layer3_result: Dict,
-        speaker_id: Optional[str],
-        audio_layer: str
+        self, layer3_result: Dict, speaker_id: Optional[str], audio_layer: str
     ) -> TranscriptionResult:
         """
         Layer 4: Final verification and confidence scoring
         """
         logger.debug("Layer 4: Final verification")
-        
+
         word_verifications = []
         review_reasons = []
         total_confidence = 0
@@ -503,7 +513,7 @@ Return JSON with verification_passed (true/false) and any corrections."""
         # Process word validations
         for word_info in layer3_result.get('word_validations', []):
             confidence = word_info.get('validated_confidence', 0.5)
-            
+
             # Determine confidence level
             if confidence >= 0.95:
                 level = ConfidenceLevel.VERIFIED
@@ -517,28 +527,26 @@ Return JSON with verification_passed (true/false) and any corrections."""
                 level = ConfidenceLevel.UNCERTAIN
 
             requires_review = level in [ConfidenceLevel.LOW, ConfidenceLevel.UNCERTAIN]
-            
+
             if word_info.get('mismatch'):
                 requires_review = True
-                review_reasons.append(
-                    f"Word '{word_info.get('afrikaans')}' translation mismatch"
-                )
+                review_reasons.append(f"Word '{word_info.get('afrikaans')}' translation mismatch")
 
             if word_info.get('sound_alikes'):
-                review_reasons.append(
-                    f"Word '{word_info.get('afrikaans')}' has sound-alikes: {word_info.get('sound_alikes')}"
-                )
+                review_reasons.append(f"Word '{word_info.get('afrikaans')}' has sound-alikes: {word_info.get('sound_alikes')}")
 
-            word_verifications.append(WordVerification(
-                word_afrikaans=word_info.get('afrikaans', ''),
-                word_english=word_info.get('english', ''),
-                confidence=confidence,
-                confidence_level=level,
-                transcription_sources=['gemini'],
-                alternatives=word_info.get('alternatives', []),
-                requires_review=requires_review,
-                speaker_id=speaker_id
-            ))
+            word_verifications.append(
+                WordVerification(
+                    word_afrikaans=word_info.get('afrikaans', ''),
+                    word_english=word_info.get('english', ''),
+                    confidence=confidence,
+                    confidence_level=level,
+                    transcription_sources=['gemini'],
+                    alternatives=word_info.get('alternatives', []),
+                    requires_review=requires_review,
+                    speaker_id=speaker_id,
+                )
+            )
 
             total_confidence += confidence
             word_count += 1
@@ -560,16 +568,13 @@ Return JSON with verification_passed (true/false) and any corrections."""
 
         # Check if human review required
         requires_human_review = (
-            overall_confidence < self.review_threshold or
-            any(w.requires_review for w in word_verifications) or
-            len(review_reasons) > 0
+            overall_confidence < self.review_threshold
+            or any(w.requires_review for w in word_verifications)
+            or len(review_reasons) > 0
         )
 
         # All checks passed?
-        all_checks_passed = (
-            overall_confidence >= self.verification_threshold and
-            not requires_human_review
-        )
+        all_checks_passed = overall_confidence >= self.verification_threshold and not requires_human_review
 
         # Get translated text
         translations = layer3_result.get('translations', [])
@@ -589,7 +594,7 @@ Return JSON with verification_passed (true/false) and any corrections."""
             speaker_id=speaker_id,
             audio_layer=audio_layer,
             verification_count=4,  # 4 layers of verification
-            all_checks_passed=all_checks_passed
+            all_checks_passed=all_checks_passed,
         )
 
 
@@ -604,9 +609,7 @@ class AfrikaansSpeakerAttributionVerifier:
         self.verification_system = AfrikaansVerificationSystem()
 
     def verify_speaker_attribution(
-        self,
-        transcriptions: List[Dict[str, Any]],
-        speaker_profiles: Dict[str, Dict]
+        self, transcriptions: List[Dict[str, Any]], speaker_profiles: Dict[str, Dict]
     ) -> Dict[str, Any]:
         """
         Verify that transcriptions are correctly attributed to speakers
@@ -628,29 +631,31 @@ class AfrikaansSpeakerAttributionVerifier:
 
             # Verify transcription
             verified = self.verification_system.verify_transcription(
-                text,
-                speaker_id=speaker_id,
-                context=f"Speaker: {speaker_id}, Time: {timestamp}"
+                text, speaker_id=speaker_id, context=f"Speaker: {speaker_id}, Time: {timestamp}"
             )
 
             # Check for attribution concerns
             if verified.requires_human_review:
-                attribution_issues.append({
-                    'speaker_id': speaker_id,
-                    'text': text,
-                    'timestamp': timestamp,
-                    'reasons': verified.review_reasons,
-                    'confidence': verified.overall_confidence
-                })
+                attribution_issues.append(
+                    {
+                        'speaker_id': speaker_id,
+                        'text': text,
+                        'timestamp': timestamp,
+                        'reasons': verified.review_reasons,
+                        'confidence': verified.overall_confidence,
+                    }
+                )
 
-            verification_results.append({
-                'speaker_id': speaker_id,
-                'original': verified.original_afrikaans,
-                'translated': verified.translated_english,
-                'confidence': verified.overall_confidence,
-                'verified': verified.all_checks_passed,
-                'requires_review': verified.requires_human_review
-            })
+            verification_results.append(
+                {
+                    'speaker_id': speaker_id,
+                    'original': verified.original_afrikaans,
+                    'translated': verified.translated_english,
+                    'confidence': verified.overall_confidence,
+                    'verified': verified.all_checks_passed,
+                    'requires_review': verified.requires_human_review,
+                }
+            )
 
         return {
             'success': True,
@@ -659,7 +664,7 @@ class AfrikaansSpeakerAttributionVerifier:
             'review_required_count': sum(1 for r in verification_results if r['requires_review']),
             'attribution_issues': attribution_issues,
             'results': verification_results,
-            'safe_to_proceed': len(attribution_issues) == 0
+            'safe_to_proceed': len(attribution_issues) == 0,
         }
 
 
@@ -676,11 +681,7 @@ class AfrikaansProcessor:
         self.word_bank = AfrikaansWordBank
 
     def process_text(
-        self,
-        afrikaans_text: str,
-        speaker_id: Optional[str] = None,
-        audio_layer: str = "foreground",
-        context: str = ""
+        self, afrikaans_text: str, speaker_id: Optional[str] = None, audio_layer: str = "foreground", context: str = ""
     ) -> TranscriptionResult:
         """
         Process Afrikaans text with full verification
@@ -694,17 +695,9 @@ class AfrikaansProcessor:
         Returns:
             Verified transcription result
         """
-        return self.verification_system.verify_transcription(
-            afrikaans_text,
-            speaker_id,
-            audio_layer,
-            context
-        )
+        return self.verification_system.verify_transcription(afrikaans_text, speaker_id, audio_layer, context)
 
-    def process_conversation(
-        self,
-        messages: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def process_conversation(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         Process entire conversation with speaker attribution verification
 
@@ -722,26 +715,26 @@ class AfrikaansProcessor:
                 msg.get('text', ''),
                 speaker_id=msg.get('speaker_id'),
                 audio_layer=msg.get('audio_layer', 'foreground'),
-                context=msg.get('context', '')
+                context=msg.get('context', ''),
             )
 
-            results.append({
-                'speaker_id': msg.get('speaker_id'),
-                'original': result.original_afrikaans,
-                'translated': result.translated_english,
-                'confidence': result.overall_confidence,
-                'confidence_level': result.overall_confidence_level.value,
-                'verified': result.all_checks_passed,
-                'requires_review': result.requires_human_review,
-                'review_reasons': result.review_reasons
-            })
+            results.append(
+                {
+                    'speaker_id': msg.get('speaker_id'),
+                    'original': result.original_afrikaans,
+                    'translated': result.translated_english,
+                    'confidence': result.overall_confidence,
+                    'confidence_level': result.overall_confidence_level.value,
+                    'verified': result.all_checks_passed,
+                    'requires_review': result.requires_human_review,
+                    'review_reasons': result.review_reasons,
+                }
+            )
 
             if result.requires_human_review:
-                issues.append({
-                    'speaker_id': msg.get('speaker_id'),
-                    'text': result.original_afrikaans,
-                    'reasons': result.review_reasons
-                })
+                issues.append(
+                    {'speaker_id': msg.get('speaker_id'), 'text': result.original_afrikaans, 'reasons': result.review_reasons}
+                )
 
         return {
             'success': True,
@@ -750,7 +743,7 @@ class AfrikaansProcessor:
             'review_required': len(issues),
             'issues': issues,
             'results': results,
-            'safe_for_analysis': len(issues) == 0
+            'safe_for_analysis': len(issues) == 0,
         }
 
     def get_confidence_report(self, result: TranscriptionResult) -> str:
@@ -776,7 +769,7 @@ class AfrikaansProcessor:
         report.append(f"Verification Layers: {result.verification_count}")
         report.append(f"All Checks Passed: {'YES ✓' if result.all_checks_passed else 'NO ✗'}")
         report.append("")
-        
+
         if result.requires_human_review:
             report.append("⚠️  HUMAN REVIEW REQUIRED")
             report.append("Review Reasons:")
@@ -797,21 +790,16 @@ class AfrikaansProcessor:
 
         report.append("")
         report.append("=" * 60)
-        
+
         return "\n".join(report)
 
 
 if __name__ == "__main__":
     processor = AfrikaansProcessor()
-    
+
     # Test with sample Afrikaans text
     test_text = "Ek weet nie wat het gebeur nie, dit was nie my skuld nie."
-    
-    result = processor.process_text(
-        test_text,
-        speaker_id="SPEAKER_01",
-        audio_layer="foreground",
-        context="Forensic interview"
-    )
-    
+
+    result = processor.process_text(test_text, speaker_id="SPEAKER_01", audio_layer="foreground", context="Forensic interview")
+
     print(processor.get_confidence_report(result))

@@ -3,13 +3,15 @@ Pydantic data models for Die Waarheid
 Structured data validation for all major components
 """
 
-from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class IntensityMetrics(BaseModel):
     """Audio intensity metrics"""
+
     mean: float = Field(ge=-100, le=0, description="Mean intensity in dB")
     max: float = Field(ge=-100, le=0, description="Maximum intensity in dB")
     std: float = Field(ge=0, description="Standard deviation of intensity")
@@ -17,6 +19,7 @@ class IntensityMetrics(BaseModel):
 
 class ForensicsResult(BaseModel):
     """Complete forensic analysis result"""
+
     success: bool
     filename: str
     duration: float = Field(ge=0, description="Duration in seconds")
@@ -42,6 +45,7 @@ class ForensicsResult(BaseModel):
 
 class Message(BaseModel):
     """WhatsApp message"""
+
     timestamp: datetime
     sender: str = Field(min_length=1)
     text: str
@@ -64,6 +68,7 @@ class Message(BaseModel):
 
 class ConversationAnalysis(BaseModel):
     """Conversation-level analysis result"""
+
     success: bool
     total_messages: int = Field(ge=0)
     overall_tone: str = Field(pattern="^(positive|negative|neutral|mixed|unknown)$")
@@ -77,6 +82,7 @@ class ConversationAnalysis(BaseModel):
 
 class ContradictionAnalysis(BaseModel):
     """Contradiction detection result"""
+
     success: bool
     contradictions: List[Dict[str, str]] = Field(default_factory=list)
     inconsistency_score: float = Field(ge=0, le=1)
@@ -86,6 +92,7 @@ class ContradictionAnalysis(BaseModel):
 
 class PsychologicalProfile(BaseModel):
     """Psychological profile result"""
+
     success: bool
     personality_traits: List[str] = Field(default_factory=list)
     communication_patterns: List[str] = Field(default_factory=list)
@@ -99,6 +106,7 @@ class PsychologicalProfile(BaseModel):
 
 class ToxicityDetection(BaseModel):
     """Toxicity detection result"""
+
     toxicity_detected: bool
     toxicity_score: float = Field(ge=0, le=1)
     detected_phrases: List[str] = Field(default_factory=list)
@@ -107,6 +115,7 @@ class ToxicityDetection(BaseModel):
 
 class GaslightingDetection(BaseModel):
     """Gaslighting pattern detection result"""
+
     gaslighting_detected: bool
     gaslighting_score: float = Field(ge=0, le=1)
     detected_phrases: List[str] = Field(default_factory=list)
@@ -115,6 +124,7 @@ class GaslightingDetection(BaseModel):
 
 class NarcissisticDetection(BaseModel):
     """Narcissistic pattern detection result"""
+
     narcissistic_patterns_detected: bool
     narcissism_score: float = Field(ge=0, le=1)
     detected_patterns: List[str] = Field(default_factory=list)
@@ -123,6 +133,7 @@ class NarcissisticDetection(BaseModel):
 
 class MessageAnalysis(BaseModel):
     """Single message analysis result"""
+
     success: bool
     text: str
     emotion: str = Field(pattern="^(positive|negative|neutral|mixed|unknown)$")
@@ -134,6 +145,7 @@ class MessageAnalysis(BaseModel):
 
 class ChatExportMetadata(BaseModel):
     """WhatsApp chat export metadata"""
+
     total_messages: int = Field(ge=0)
     unique_senders: int = Field(ge=0)
     date_range_start: Optional[datetime] = None
@@ -144,6 +156,7 @@ class ChatExportMetadata(BaseModel):
 
 class TimelineEntry(BaseModel):
     """Forensic timeline entry"""
+
     index: int = Field(ge=0)
     msg_id: str
     sender: str
@@ -159,6 +172,7 @@ class TimelineEntry(BaseModel):
 
 class AnalysisSession(BaseModel):
     """Analysis session metadata"""
+
     session_id: str
     case_id: str
     created_at: datetime = Field(default_factory=datetime.now)
@@ -182,7 +196,7 @@ if __name__ == "__main__":
         spectral_centroid=2500.0,
         stress_level=52.1,
         stress_threshold_exceeded=True,
-        high_cognitive_load=False
+        high_cognitive_load=False,
     )
     print("ForensicsResult validation passed")
     print(forensics_result.json(indent=2))

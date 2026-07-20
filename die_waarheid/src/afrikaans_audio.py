@@ -8,11 +8,12 @@ to ensure the right words are attributed to the right person
 """
 
 import logging
-import numpy as np
-from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AudioLayer:
     """Represents a separated audio layer"""
+
     layer_type: str  # "foreground" or "background"
     audio_data: np.ndarray
     sample_rate: int
@@ -33,6 +35,7 @@ class AudioLayer:
 @dataclass
 class SeparatedAudio:
     """Result of audio separation"""
+
     success: bool
     foreground: Optional[AudioLayer]
     background: Optional[AudioLayer]
@@ -72,10 +75,11 @@ class AudioLayerSeparator:
         """
         try:
             warnings = []
-            
+
             # Resample if needed
             if sr != self.sample_rate:
                 import librosa
+
                 audio = librosa.resample(audio, orig_sr=sr, target_sr=self.sample_rate)
                 sr = self.sample_rate
 
@@ -84,9 +88,9 @@ class AudioLayerSeparator:
             # Calculate energy profile
             frame_length = int(0.025 * sr)
             hop_length = int(0.010 * sr)
-            
+
             energy = self._calculate_energy(audio, frame_length, hop_length)
-            
+
             # Separate based on energy
             foreground_mask = energy > np.percentile(energy, 70)
             background_mask = ~foreground_mask
@@ -119,7 +123,7 @@ class AudioLayerSeparator:
                 energy_level=float(fg_energy),
                 clarity_score=float(clarity),
                 speaker_detected=fg_energy > self.energy_threshold,
-                confidence=min(1.0, clarity * 1.2)
+                confidence=min(1.0, clarity * 1.2),
             )
 
             background_layer = AudioLayer(
@@ -130,13 +134,13 @@ class AudioLayerSeparator:
                 energy_level=float(bg_energy),
                 clarity_score=float(1 - clarity),
                 speaker_detected=bg_energy > self.energy_threshold * 0.5,
-                confidence=min(1.0, (1 - clarity) * 1.2)
+                confidence=min(1.0, (1 - clarity) * 1.2),
             )
 
             # Add warnings for potential issues
             if clarity < 0.3:
                 warnings.append("Low separation clarity - foreground/background may overlap")
-            
+
             if speaker_count > 2:
                 warnings.append(f"Multiple speakers detected ({speaker_count}) - verify attribution carefully")
 
@@ -147,7 +151,7 @@ class AudioLayerSeparator:
                 original_duration=duration,
                 separation_confidence=clarity,
                 speaker_count_estimate=speaker_count,
-                warnings=warnings
+                warnings=warnings,
             )
 
         except Exception as e:
@@ -159,37 +163,27 @@ class AudioLayerSeparator:
                 original_duration=0,
                 separation_confidence=0,
                 speaker_count_estimate=0,
-                warnings=[f"Separation failed: {str(e)}"]
+                warnings=[f"Separation failed: {str(e)}"],
             )
 
-    def _calculate_energy(
-        self,
-        audio: np.ndarray,
-        frame_length: int,
-        hop_length: int
-    ) -> np.ndarray:
+    def _calculate_energy(self, audio: np.ndarray, frame_length: int, hop_length: int) -> np.ndarray:
         """Calculate frame-wise energy"""
         energy = []
         for i in range(0, len(audio) - frame_length, hop_length):
-            frame = audio[i:i + frame_length]
-            energy.append(np.sum(frame ** 2))
+            frame = audio[i : i + frame_length]
+            energy.append(np.sum(frame**2))
         return np.array(energy)
 
-    def _apply_mask(
-        self,
-        audio: np.ndarray,
-        mask: np.ndarray,
-        hop_length: int
-    ) -> np.ndarray:
+    def _apply_mask(self, audio: np.ndarray, mask: np.ndarray, hop_length: int) -> np.ndarray:
         """Apply frame mask to audio"""
         output = np.zeros_like(audio)
-        
+
         for i, m in enumerate(mask):
             start = i * hop_length
             end = min(start + hop_length, len(audio))
             if m:
                 output[start:end] = audio[start:end]
-        
+
         return output
 
     def _estimate_speaker_count(self, audio: np.ndarray, sr: int) -> int:
@@ -198,22 +192,22 @@ class AudioLayerSeparator:
             # Simple estimation based on energy variance
             frame_length = int(0.1 * sr)
             energies = []
-            
+
             for i in range(0, len(audio) - frame_length, frame_length):
-                frame = audio[i:i + frame_length]
+                frame = audio[i : i + frame_length]
                 energies.append(np.mean(np.abs(frame)))
-            
+
             if len(energies) < 2:
                 return 1
 
             # Cluster energy levels
             energies = np.array(energies)
             threshold = np.median(energies)
-            
+
             # Count transitions
             above = energies > threshold
             transitions = np.sum(np.abs(np.diff(above.astype(int))))
-            
+
             # Estimate speakers based on transition pattern
             if transitions < 3:
                 return 1
@@ -241,6 +235,7 @@ class AfrikaansAudioTranscriber:
         """Load Whisper model for Afrikaans"""
         try:
             import whisper
+
             # Use medium model for better Afrikaans accuracy
             self.whisper_model = whisper.load_model("medium")
             logger.info("Whisper model loaded for Afrikaans transcription")
@@ -249,11 +244,7 @@ class AfrikaansAudioTranscriber:
         except Exception as e:
             logger.error(f"Error loading Whisper: {str(e)}")
 
-    def transcribe_audio(
-        self,
-        audio_path: Path,
-        separate_layers: bool = True
-    ) -> Dict[str, Any]:
+    def transcribe_audio(self, audio_path: Path, separate_layers: bool = True) -> Dict[str, Any]:
         """
         Transcribe Afrikaans audio file
 
@@ -266,7 +257,7 @@ class AfrikaansAudioTranscriber:
         """
         try:
             import librosa
-            
+
             # Load audio
             audio, sr = librosa.load(str(audio_path), sr=16000)
             duration = len(audio) / sr
@@ -276,35 +267,29 @@ class AfrikaansAudioTranscriber:
                 'audio_path': str(audio_path),
                 'duration': duration,
                 'transcriptions': [],
-                'warnings': []
+                'warnings': [],
             }
 
             if separate_layers:
                 # Separate audio layers
                 separated = self.separator.separate_layers(audio, sr)
-                
+
                 if separated.success:
                     results['separation'] = {
                         'confidence': separated.separation_confidence,
                         'speaker_count': separated.speaker_count_estimate,
-                        'warnings': separated.warnings
+                        'warnings': separated.warnings,
                     }
                     results['warnings'].extend(separated.warnings)
 
                     # Transcribe foreground
                     if separated.foreground and separated.foreground.speaker_detected:
-                        fg_transcription = self._transcribe_layer(
-                            separated.foreground,
-                            "foreground"
-                        )
+                        fg_transcription = self._transcribe_layer(separated.foreground, "foreground")
                         results['transcriptions'].append(fg_transcription)
 
                     # Transcribe background
                     if separated.background and separated.background.speaker_detected:
-                        bg_transcription = self._transcribe_layer(
-                            separated.background,
-                            "background"
-                        )
+                        bg_transcription = self._transcribe_layer(separated.background, "background")
                         results['transcriptions'].append(bg_transcription)
                 else:
                     results['warnings'].append("Layer separation failed - transcribing full audio")
@@ -319,35 +304,16 @@ class AfrikaansAudioTranscriber:
 
         except Exception as e:
             logger.error(f"Transcription error: {str(e)}")
-            return {
-                'success': False,
-                'error': str(e),
-                'transcriptions': [],
-                'warnings': [f"Transcription failed: {str(e)}"]
-            }
+            return {'success': False, 'error': str(e), 'transcriptions': [], 'warnings': [f"Transcription failed: {str(e)}"]}
 
-    def _transcribe_layer(
-        self,
-        layer: AudioLayer,
-        layer_type: str
-    ) -> Dict[str, Any]:
+    def _transcribe_layer(self, layer: AudioLayer, layer_type: str) -> Dict[str, Any]:
         """Transcribe a single audio layer"""
         if self.whisper_model is None:
-            return {
-                'layer': layer_type,
-                'text': '',
-                'language': 'af',
-                'confidence': 0,
-                'error': 'Whisper not available'
-            }
+            return {'layer': layer_type, 'text': '', 'language': 'af', 'confidence': 0, 'error': 'Whisper not available'}
 
         try:
             # Whisper transcription with Afrikaans language hint
-            result = self.whisper_model.transcribe(
-                layer.audio_data,
-                language="af",  # Afrikaans
-                task="transcribe"
-            )
+            result = self.whisper_model.transcribe(layer.audio_data, language="af", task="transcribe")  # Afrikaans
 
             return {
                 'layer': layer_type,
@@ -355,40 +321,20 @@ class AfrikaansAudioTranscriber:
                 'language': result.get('language', 'af'),
                 'confidence': layer.confidence,
                 'segments': result.get('segments', []),
-                'duration': layer.duration
+                'duration': layer.duration,
             }
 
         except Exception as e:
             logger.error(f"Layer transcription error: {str(e)}")
-            return {
-                'layer': layer_type,
-                'text': '',
-                'language': 'af',
-                'confidence': 0,
-                'error': str(e)
-            }
+            return {'layer': layer_type, 'text': '', 'language': 'af', 'confidence': 0, 'error': str(e)}
 
-    def _transcribe_full(
-        self,
-        audio: np.ndarray,
-        sr: int
-    ) -> Dict[str, Any]:
+    def _transcribe_full(self, audio: np.ndarray, sr: int) -> Dict[str, Any]:
         """Transcribe full audio without layer separation"""
         if self.whisper_model is None:
-            return {
-                'layer': 'full',
-                'text': '',
-                'language': 'af',
-                'confidence': 0,
-                'error': 'Whisper not available'
-            }
+            return {'layer': 'full', 'text': '', 'language': 'af', 'confidence': 0, 'error': 'Whisper not available'}
 
         try:
-            result = self.whisper_model.transcribe(
-                audio,
-                language="af",
-                task="transcribe"
-            )
+            result = self.whisper_model.transcribe(audio, language="af", task="transcribe")
 
             return {
                 'layer': 'full',
@@ -396,18 +342,12 @@ class AfrikaansAudioTranscriber:
                 'language': result.get('language', 'af'),
                 'confidence': 0.8,  # Default confidence for full audio
                 'segments': result.get('segments', []),
-                'duration': len(audio) / sr
+                'duration': len(audio) / sr,
             }
 
         except Exception as e:
             logger.error(f"Full transcription error: {str(e)}")
-            return {
-                'layer': 'full',
-                'text': '',
-                'language': 'af',
-                'confidence': 0,
-                'error': str(e)
-            }
+            return {'layer': 'full', 'text': '', 'language': 'af', 'confidence': 0, 'error': str(e)}
 
 
 class AfrikaansAudioVerifier:
@@ -420,13 +360,10 @@ class AfrikaansAudioVerifier:
         """Initialize verifier"""
         self.transcriber = AfrikaansAudioTranscriber()
         from afrikaans_processor import AfrikaansProcessor
+
         self.processor = AfrikaansProcessor()
 
-    def verify_audio_transcription(
-        self,
-        audio_path: Path,
-        expected_speaker: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def verify_audio_transcription(self, audio_path: Path, expected_speaker: Optional[str] = None) -> Dict[str, Any]:
         """
         Perform full verification of audio transcription
 
@@ -440,17 +377,10 @@ class AfrikaansAudioVerifier:
         logger.info(f"Starting audio verification for: {audio_path}")
 
         # Step 1: Transcribe audio with layer separation
-        transcription_result = self.transcriber.transcribe_audio(
-            audio_path,
-            separate_layers=True
-        )
+        transcription_result = self.transcriber.transcribe_audio(audio_path, separate_layers=True)
 
         if not transcription_result.get('success'):
-            return {
-                'success': False,
-                'error': transcription_result.get('error', 'Transcription failed'),
-                'verified': False
-            }
+            return {'success': False, 'error': transcription_result.get('error', 'Transcription failed'), 'verified': False}
 
         # Step 2: Verify each transcription
         verified_results = []
@@ -466,31 +396,27 @@ class AfrikaansAudioVerifier:
 
             # Run through Afrikaans processor for verification
             verification = self.processor.process_text(
-                text,
-                speaker_id=expected_speaker,
-                audio_layer=layer,
-                context=f"Audio file: {audio_path.name}"
+                text, speaker_id=expected_speaker, audio_layer=layer, context=f"Audio file: {audio_path.name}"
             )
 
-            verified_results.append({
-                'layer': layer,
-                'original_afrikaans': verification.original_afrikaans,
-                'translated_english': verification.translated_english,
-                'confidence': verification.overall_confidence,
-                'confidence_level': verification.overall_confidence_level.value,
-                'all_checks_passed': verification.all_checks_passed,
-                'requires_review': verification.requires_human_review,
-                'review_reasons': verification.review_reasons,
-                'word_count': len(verification.word_verifications),
-                'uncertain_words': [
-                    w.word_afrikaans for w in verification.word_verifications
-                    if w.requires_review
-                ]
-            })
+            verified_results.append(
+                {
+                    'layer': layer,
+                    'original_afrikaans': verification.original_afrikaans,
+                    'translated_english': verification.translated_english,
+                    'confidence': verification.overall_confidence,
+                    'confidence_level': verification.overall_confidence_level.value,
+                    'all_checks_passed': verification.all_checks_passed,
+                    'requires_review': verification.requires_human_review,
+                    'review_reasons': verification.review_reasons,
+                    'word_count': len(verification.word_verifications),
+                    'uncertain_words': [w.word_afrikaans for w in verification.word_verifications if w.requires_review],
+                }
+            )
 
             if not verification.all_checks_passed:
                 all_verified = False
-            
+
             if verification.requires_human_review:
                 review_required = True
 
@@ -503,13 +429,10 @@ class AfrikaansAudioVerifier:
             'all_verified': all_verified,
             'review_required': review_required,
             'warnings': transcription_result.get('warnings', []),
-            'safe_to_use': all_verified and not review_required
+            'safe_to_use': all_verified and not review_required,
         }
 
-    def generate_verification_report(
-        self,
-        verification_result: Dict[str, Any]
-    ) -> str:
+    def generate_verification_report(self, verification_result: Dict[str, Any]) -> str:
         """
         Generate human-readable verification report
 
@@ -557,26 +480,26 @@ class AfrikaansAudioVerifier:
         # Results by layer
         report.append("TRANSCRIPTION RESULTS:")
         report.append("-" * 50)
-        
+
         for result in verification_result.get('results', []):
             report.append(f"\nLAYER: {result.get('layer', 'unknown').upper()}")
             report.append(f"  Afrikaans: {result.get('original_afrikaans', '')}")
             report.append(f"  English: {result.get('translated_english', '')}")
             report.append(f"  Confidence: {result.get('confidence', 0):.1%} ({result.get('confidence_level', 'unknown')})")
             report.append(f"  Verified: {'✅ YES' if result.get('all_checks_passed') else '❌ NO'}")
-            
+
             if result.get('requires_review'):
                 report.append(f"  ⚠️  Requires Review:")
                 for reason in result.get('review_reasons', []):
                     report.append(f"      - {reason}")
-            
+
             uncertain = result.get('uncertain_words', [])
             if uncertain:
                 report.append(f"  Uncertain Words: {', '.join(uncertain)}")
 
         report.append("")
         report.append("=" * 70)
-        
+
         return "\n".join(report)
 
 

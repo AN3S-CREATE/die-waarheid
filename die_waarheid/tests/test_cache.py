@@ -3,10 +3,10 @@ Unit tests for caching layer
 Tests cache operations, hit/miss, and persistence
 """
 
-import pytest
 import tempfile
 from pathlib import Path
 
+import pytest
 from src.cache import AnalysisCache
 
 
@@ -61,11 +61,7 @@ class TestAnalysisCache:
 
     def test_cache_set_and_get(self, cache, temp_audio_file):
         """Test storing and retrieving from cache"""
-        result = {
-            'success': True,
-            'filename': 'test.wav',
-            'stress_level': 45.5
-        }
+        result = {'success': True, 'filename': 'test.wav', 'stress_level': 45.5}
 
         success = cache.set(temp_audio_file, result)
         assert success is True
@@ -98,16 +94,8 @@ class TestAnalysisCache:
             'success': True,
             'filename': 'test.wav',
             'duration': 10.5,
-            'metrics': {
-                'pitch_volatility': 45.2,
-                'silence_ratio': 0.3,
-                'intensity': {
-                    'mean': -20.0,
-                    'max': -5.0,
-                    'std': 8.5
-                }
-            },
-            'flags': ['high_stress', 'cognitive_load']
+            'metrics': {'pitch_volatility': 45.2, 'silence_ratio': 0.3, 'intensity': {'mean': -20.0, 'max': -5.0, 'std': 8.5}},
+            'flags': ['high_stress', 'cognitive_load'],
         }
 
         cache.set(temp_audio_file, result)

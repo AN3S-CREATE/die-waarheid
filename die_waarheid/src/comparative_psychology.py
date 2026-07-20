@@ -13,16 +13,17 @@ FEATURES:
 """
 
 import logging
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
 
 class BehaviorPattern(Enum):
     """Type of behavior pattern"""
+
     STRESS_RESPONSE = "stress_response"
     MANIPULATION = "manipulation"
     EMOTIONAL_ESCALATION = "emotional_escalation"
@@ -35,35 +36,36 @@ class BehaviorPattern(Enum):
 @dataclass
 class PsychologicalProfile:
     """Psychological profile for one participant"""
+
     participant_id: str
     participant_name: str
-    
+
     # Stress patterns
     baseline_stress: float
     stress_spike_frequency: int
     stress_spike_magnitude: float
     stress_triggers: List[str]
-    
+
     # Manipulation tactics
     gaslighting_indicators: List[str]
     guilt_tripping_indicators: List[str]
     threatening_language: List[str]
     isolation_tactics: List[str]
     love_bombing_indicators: List[str]
-    
+
     # Emotional patterns
     emotional_tone_baseline: str
     emotional_escalation_rate: float
     emotional_consistency: float
     anger_triggers: List[str]
     fear_indicators: List[str]
-    
+
     # Behavioral traits
     defensiveness_score: float
     accountability_score: float
     victim_mentality_score: float
     consistency_score: float
-    
+
     # Summary
     psychological_profile_summary: str
     risk_indicators: List[str]
@@ -73,32 +75,33 @@ class PsychologicalProfile:
 @dataclass
 class ComparativeAnalysis:
     """Comparison between two participants"""
+
     participant_a_id: str
     participant_b_id: str
     participant_a_name: str
     participant_b_name: str
-    
+
     # Stress comparison
     stress_baseline_difference: float
     stress_response_pattern_difference: str
-    
+
     # Manipulation comparison
     manipulation_tactics_a: List[str]
     manipulation_tactics_b: List[str]
     unique_tactics_a: List[str]
     unique_tactics_b: List[str]
-    
+
     # Emotional comparison
     emotional_stability_a: float
     emotional_stability_b: float
     emotional_pattern_difference: str
-    
+
     # Behavioral comparison
     defensiveness_difference: float
     accountability_difference: float
     victim_mentality_difference: float
     consistency_difference: float
-    
+
     # Summary
     key_differences: List[str]
     behavioral_contrast: str
@@ -116,10 +119,7 @@ class ComparativePsychologyAnalyzer:
         self.comparisons: Dict[str, ComparativeAnalysis] = {}
 
     def build_profile(
-        self,
-        participant_id: str,
-        participant_name: str,
-        evidence_data: List[Dict[str, Any]]
+        self, participant_id: str, participant_name: str, evidence_data: List[Dict[str, Any]]
     ) -> PsychologicalProfile:
         """
         Build psychological profile from evidence
@@ -138,7 +138,11 @@ class ComparativePsychologyAnalyzer:
         stress_levels = [e.get('stress_level', 0) for e in evidence_data if e.get('stress_level')]
         baseline_stress = sum(stress_levels) / len(stress_levels) if stress_levels else 0
         stress_spikes = len([s for s in stress_levels if s > baseline_stress * 1.5])
-        avg_spike_magnitude = sum(s / baseline_stress for s in stress_levels if s > baseline_stress * 1.5) / max(stress_spikes, 1) if stress_spikes > 0 else 0
+        avg_spike_magnitude = (
+            sum(s / baseline_stress for s in stress_levels if s > baseline_stress * 1.5) / max(stress_spikes, 1)
+            if stress_spikes > 0
+            else 0
+        )
 
         # Extract manipulation indicators
         gaslighting = self._detect_gaslighting(evidence_data)
@@ -162,20 +166,16 @@ class ComparativePsychologyAnalyzer:
 
         # Generate summary
         profile_summary = self._generate_profile_summary(
-            participant_name, baseline_stress, gaslighting, guilt_tripping,
-            defensiveness, accountability, victim_mentality
+            participant_name, baseline_stress, gaslighting, guilt_tripping, defensiveness, accountability, victim_mentality
         )
 
         # Identify risk indicators
         risk_indicators = self._identify_risk_indicators(
-            gaslighting, guilt_tripping, threatening, isolation,
-            defensiveness, victim_mentality
+            gaslighting, guilt_tripping, threatening, isolation, defensiveness, victim_mentality
         )
 
         # Identify red flags
-        red_flags = self._identify_red_flags(
-            stress_spikes, escalation_rate, consistency, accountability
-        )
+        red_flags = self._identify_red_flags(stress_spikes, escalation_rate, consistency, accountability)
 
         profile = PsychologicalProfile(
             participant_id=participant_id,
@@ -200,7 +200,7 @@ class ComparativePsychologyAnalyzer:
             consistency_score=consistency,
             psychological_profile_summary=profile_summary,
             risk_indicators=risk_indicators,
-            behavioral_red_flags=red_flags
+            behavioral_red_flags=red_flags,
         )
 
         self.profiles[participant_id] = profile
@@ -209,9 +209,15 @@ class ComparativePsychologyAnalyzer:
     def _detect_gaslighting(self, evidence_data: List[Dict[str, Any]]) -> List[str]:
         """Detect gaslighting language patterns"""
         gaslighting_phrases = [
-            "you're imagining things", "that never happened", "you're too sensitive",
-            "you're crazy", "you're making it up", "that's not what I said",
-            "you're overreacting", "you're being dramatic", "you misunderstood"
+            "you're imagining things",
+            "that never happened",
+            "you're too sensitive",
+            "you're crazy",
+            "you're making it up",
+            "that's not what I said",
+            "you're overreacting",
+            "you're being dramatic",
+            "you misunderstood",
         ]
 
         indicators = []
@@ -226,8 +232,13 @@ class ComparativePsychologyAnalyzer:
     def _detect_guilt_tripping(self, evidence_data: List[Dict[str, Any]]) -> List[str]:
         """Detect guilt-tripping language"""
         guilt_phrases = [
-            "after all i've done", "i sacrificed everything", "you don't appreciate",
-            "you're ungrateful", "i gave up", "you owe me", "i did this for you"
+            "after all i've done",
+            "i sacrificed everything",
+            "you don't appreciate",
+            "you're ungrateful",
+            "i gave up",
+            "you owe me",
+            "i did this for you",
         ]
 
         indicators = []
@@ -242,8 +253,13 @@ class ComparativePsychologyAnalyzer:
     def _detect_threatening_language(self, evidence_data: List[Dict[str, Any]]) -> List[str]:
         """Detect threatening language"""
         threat_phrases = [
-            "you'll regret", "i'll make sure", "you'll see", "just wait",
-            "i'll tell everyone", "i'll destroy you", "you'll lose everything"
+            "you'll regret",
+            "i'll make sure",
+            "you'll see",
+            "just wait",
+            "i'll tell everyone",
+            "i'll destroy you",
+            "you'll lose everything",
         ]
 
         indicators = []
@@ -258,8 +274,12 @@ class ComparativePsychologyAnalyzer:
     def _detect_isolation_tactics(self, evidence_data: List[Dict[str, Any]]) -> List[str]:
         """Detect isolation tactics"""
         isolation_phrases = [
-            "don't talk to them", "they're against you", "nobody understands",
-            "only i can help", "don't trust anyone", "they're lying about me"
+            "don't talk to them",
+            "they're against you",
+            "nobody understands",
+            "only i can help",
+            "don't trust anyone",
+            "they're lying about me",
         ]
 
         indicators = []
@@ -274,8 +294,12 @@ class ComparativePsychologyAnalyzer:
     def _detect_love_bombing(self, evidence_data: List[Dict[str, Any]]) -> List[str]:
         """Detect love-bombing language"""
         love_bomb_phrases = [
-            "i love you so much", "you're perfect", "you're the only one",
-            "i can't live without you", "you complete me", "you're my everything"
+            "i love you so much",
+            "you're perfect",
+            "you're the only one",
+            "i can't live without you",
+            "you complete me",
+            "you're my everything",
         ]
 
         indicators = []
@@ -294,7 +318,7 @@ class ComparativePsychologyAnalyzer:
             'sad': ['sad', 'depressed', 'miserable', 'heartbroken'],
             'anxious': ['anxious', 'worried', 'nervous', 'scared'],
             'defensive': ['defensive', 'accused', 'blamed', 'unfair'],
-            'neutral': []
+            'neutral': [],
         }
 
         tone_counts = {tone: 0 for tone in emotional_words.keys()}
@@ -313,7 +337,7 @@ class ComparativePsychologyAnalyzer:
     def _calculate_escalation_rate(self, evidence_data: List[Dict[str, Any]]) -> float:
         """Calculate emotional escalation rate"""
         stress_levels = [e.get('stress_level', 0) for e in evidence_data if e.get('stress_level')]
-        
+
         if len(stress_levels) < 2:
             return 0.0
 
@@ -329,14 +353,14 @@ class ComparativePsychologyAnalyzer:
     def _calculate_emotional_consistency(self, evidence_data: List[Dict[str, Any]]) -> float:
         """Calculate emotional consistency (0-1)"""
         stress_levels = [e.get('stress_level', 0) for e in evidence_data if e.get('stress_level')]
-        
+
         if len(stress_levels) < 2:
             return 0.5
 
         # Calculate standard deviation
         avg = sum(stress_levels) / len(stress_levels)
         variance = sum((x - avg) ** 2 for x in stress_levels) / len(stress_levels)
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
 
         # Normalize: lower std dev = higher consistency
         consistency = 1.0 / (1.0 + std_dev / 100.0)
@@ -433,7 +457,7 @@ class ComparativePsychologyAnalyzer:
         guilt_tripping: List[str],
         defensiveness: float,
         accountability: float,
-        victim_mentality: float
+        victim_mentality: float,
     ) -> str:
         """Generate psychological profile summary"""
         summary = f"Psychological Profile: {name}\n\n"
@@ -459,7 +483,7 @@ class ComparativePsychologyAnalyzer:
         threatening: List[str],
         isolation: List[str],
         defensiveness: float,
-        victim_mentality: float
+        victim_mentality: float,
     ) -> List[str]:
         """Identify risk indicators"""
         indicators = []
@@ -480,11 +504,7 @@ class ComparativePsychologyAnalyzer:
         return indicators
 
     def _identify_red_flags(
-        self,
-        stress_spikes: int,
-        escalation_rate: float,
-        consistency: float,
-        accountability: float
+        self, stress_spikes: int, escalation_rate: float, consistency: float, accountability: float
     ) -> List[str]:
         """Identify behavioral red flags"""
         flags = []
@@ -500,11 +520,7 @@ class ComparativePsychologyAnalyzer:
 
         return flags
 
-    def compare_profiles(
-        self,
-        participant_a_id: str,
-        participant_b_id: str
-    ) -> Optional[ComparativeAnalysis]:
+    def compare_profiles(self, participant_a_id: str, participant_b_id: str) -> Optional[ComparativeAnalysis]:
         """
         Compare two psychological profiles
 
@@ -530,7 +546,11 @@ class ComparativePsychologyAnalyzer:
 
         # Determine patterns
         stress_pattern = "A more stressed" if stress_diff > 0 else "B more stressed"
-        emotional_pattern = "A more escalating" if profile_a.emotional_escalation_rate > profile_b.emotional_escalation_rate else "B more escalating"
+        emotional_pattern = (
+            "A more escalating"
+            if profile_a.emotional_escalation_rate > profile_b.emotional_escalation_rate
+            else "B more escalating"
+        )
 
         # Key differences
         key_differences = []
@@ -565,10 +585,7 @@ class ComparativePsychologyAnalyzer:
             consistency_difference=consistency_diff,
             key_differences=key_differences,
             behavioral_contrast=f"{profile_a.participant_name} shows {abs(defensiveness_diff)*100:.0f}% more defensiveness than {profile_b.participant_name}",
-            risk_assessment={
-                profile_a.participant_name: risk_a,
-                profile_b.participant_name: risk_b
-            }
+            risk_assessment={profile_a.participant_name: risk_a, profile_b.participant_name: risk_b},
         )
 
         self.comparisons[f"{participant_a_id}_vs_{participant_b_id}"] = comparison
@@ -582,6 +599,7 @@ class ComparativePsychologyAnalyzer:
                 return False
 
             import json
+
             data = {
                 'participant_id': profile.participant_id,
                 'participant_name': profile.participant_name,
@@ -597,7 +615,7 @@ class ComparativePsychologyAnalyzer:
                 'gaslighting_indicators': profile.gaslighting_indicators,
                 'guilt_tripping_indicators': profile.guilt_tripping_indicators,
                 'threatening_language': profile.threatening_language,
-                'isolation_tactics': profile.isolation_tactics
+                'isolation_tactics': profile.isolation_tactics,
             }
 
             with open(output_path, 'w', encoding='utf-8') as f:
