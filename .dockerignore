@@ -1,0 +1,45 @@
+# Source-control and local tooling
+.git
+.github
+.agents
+.codex
+.idea
+.vscode
+
+# Python caches and environments
+**/__pycache__
+**/*.py[cod]
+.mypy_cache
+.pytest_cache
+.venv
+venv
+htmlcov
+coverage.xml
+
+# Frontend dependencies and local output
+frontend/node_modules
+frontend/dist
+frontend/.env*
+
+# Secrets, credentials, and private investigation data
+.env
+**/.env
+credentials
+data
+die_waarheid/data/audio/*
+die_waarheid/data/text/*
+die_waarheid/data/temp/*
+die_waarheid/data/output/*
+temp_export
+*.voice
+*.recording
+*.private
+
+# Test and diagnostic artifacts are not required at runtime
+tests
+die_waarheid/tests
+test_*.py
+test_*.mp3
+bandit-report.json
+pip-audit-report.json
+*.log

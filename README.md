@@ -1,5 +1,7 @@
 # Die Waarheid - Advanced Forensic Analysis System
 
+> CI contributor guide: [docs/ci.md](docs/ci.md)
+
 🕵️ **Forensic-grade WhatsApp communication analysis platform with AI-powered insights**
 
 [![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
