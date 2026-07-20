@@ -70,7 +70,7 @@ The application itself may require runtime values such as `API_KEY`; those value
 - Frontend production bundle: 14 days.
 - Bandit and dependency-audit JSON reports: 30 days.
 
-Bandit blocks medium/high-severity findings with medium/high confidence. `pip-audit` is currently informational because the legacy exact dependency set needs a reviewed remediation baseline; its `continue-on-error` is limited to that documented step.
+Bandit blocks medium/high-severity findings with medium/high confidence. `pip-audit` is currently informational because the legacy exact dependency set needs a reviewed remediation baseline; findings create a warning annotation and remain available in the uploaded report.
 
 ## Re-run and debug a failure
 

@@ -187,8 +187,14 @@ jobs:
         run: bandit -r die_waarheid -s B101,B102,B301 -ll -ii -f json -o bandit-report.json
 
       - name: Audit locked application dependencies
-        continue-on-error: true # Informational until the legacy dependency set has a reviewed vulnerability baseline.
-        run: pip-audit --requirement requirements.txt --format json --output pip-audit-report.json
+        run: |
+          set +e
+          pip-audit --requirement requirements.txt --format json --output pip-audit-report.json
+          audit_status=$?
+          set -e
+          if [ "$audit_status" -ne 0 ]; then
+            echo '::warning::Dependency vulnerabilities were reported; review pip-audit-report.json.'
+          fi
 
       - name: Upload security reports
         if: always()
