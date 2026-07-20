@@ -126,7 +126,7 @@ class ServiceManager:
                 "uvicorn",
                 api_module,
                 "--host",
-                "0.0.0.0",
+                os.getenv("API_HOST", "127.0.0.1"),
                 "--port",
                 "8000",
                 "--reload",
@@ -162,7 +162,7 @@ class ServiceManager:
                 "run",
                 str(app_path),
                 "--server.port=8501",
-                "--server.address=0.0.0.0",
+                f"--server.address={os.getenv('STREAMLIT_SERVER_ADDRESS', '127.0.0.1')}",
                 "--server.headless=true",
                 "--browser.gatherUsageStats=false",
             ]
