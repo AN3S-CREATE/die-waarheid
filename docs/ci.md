@@ -1,6 +1,6 @@
 # Continuous Integration
 
-The `CI` workflow validates Python quality and tests, frontend lint/build, application security, and the production Dockerfile. It runs on pushes and pull requests for `main` and `develop`, every Monday at 03:17 UTC, and on manual dispatch.
+The `CI` workflow validates Python quality and tests, frontend lint/build, application security, and the production Dockerfile. It runs on pushes and pull requests for `main` and `develop`, every Monday at 03:17 UTC, and on manual dispatch. Pull requests use BuildKit's fast Dockerfile validation call; trusted push, schedule, and manual runs execute the full cached image build.
 
 `CI Health` is the stable aggregate check intended for branch protection. It fails unless every required job succeeds.
 
